@@ -1,0 +1,18 @@
+﻿{
+  "name": "fototrack",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter api dev",
+    "dev": "concurrently -n WEB,API -c blue,green \"pnpm dev:web\" \"pnpm dev:api\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-react": "^7.37.0",
+    "prettier": "^3.3.3"
+  }
+}
