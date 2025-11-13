@@ -6,7 +6,9 @@
   "scripts": {
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter api dev",
-    "dev": "concurrently -n WEB,API -c blue,green \"pnpm dev:web\" \"pnpm dev:api\""
+    "dev": "concurrently -n WEB,API -c blue,green \"pnpm dev:web\" \"pnpm dev:api\"",
+    "lint": "eslint .",
+    "format": "prettier -w ."
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
