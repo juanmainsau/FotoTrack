@@ -81,7 +81,7 @@ export function MainscreenPage() {
           <a href="#" className="nav-link px-0 py-1 fw-semibold">
             🏠 Inicio
           </a>
-          <a href="#" className="nav-link px-0 py-1">
+          <a href="/app/albums" className="nav-link px-0 py-1">
             📸 Explorar álbumes
           </a>
           <a href="#" className="nav-link px-0 py-1">
