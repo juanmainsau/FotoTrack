@@ -1,5 +1,8 @@
 // apps/web/src/pages/Mainscreen.jsx
 
+import { useEffect, useState } from "react";
+import { fetchAlbums } from "../api/albums";
+
 const MOCK_USER = {
   nombre: "Juanma",
 };
@@ -10,31 +13,28 @@ const MOCK_RESUMEN = {
   comprasRealizadas: 4,
 };
 
-const MOCK_ALBUMS_RECIENTES = [
-  {
-    id: 1,
-    nombre: "Fecha XCO Cerro Azul",
-    fecha: "12/10/2025",
-    ubicacion: "Cerro Azul, Misiones",
-    imagenPreview: "/album-placeholder-1.jpg",
-  },
-  {
-    id: 2,
-    nombre: "Desafío MTB Posadas",
-    fecha: "28/09/2025",
-    ubicacion: "Posadas, Misiones",
-    imagenPreview: "/album-placeholder-2.jpg",
-  },
-  {
-    id: 3,
-    nombre: "Travesía Selva Adentro",
-    fecha: "14/09/2025",
-    ubicacion: "Oberá, Misiones",
-    imagenPreview: "/album-placeholder-3.jpg",
-  },
-];
-
 export function MainscreenPage() {
+  const [albums, setAlbums] = useState([]);
+  const [loadingAlbums, setLoadingAlbums] = useState(true);
+  const [errorAlbums, setErrorAlbums] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoadingAlbums(true);
+        const data = await fetchAlbums();
+        setAlbums(data);
+      } catch (err) {
+        console.error(err);
+        setErrorAlbums("No se pudieron cargar los álbumes.");
+      } finally {
+        setLoadingAlbums(false);
+      }
+    }
+
+    load();
+  }, []);
+
   return (
     <div className="d-flex" style={{ minHeight: "100vh" }}>
       {/* SIDEBAR */}
@@ -48,9 +48,7 @@ export function MainscreenPage() {
         {/* Header sidebar */}
         <div className="p-4 border-bottom">
           <h4 className="fw-bold mb-0">FotoTrack</h4>
-          <small className="text-muted">
-            Panel del usuario
-          </small>
+          <small className="text-muted">Panel del usuario</small>
         </div>
 
         {/* Usuario / avatar mini */}
@@ -109,12 +107,10 @@ export function MainscreenPage() {
       <main className="flex-grow-1 p-4 p-md-5">
         {/* Saludo + resumen */}
         <section className="mb-4">
-          <h2 className="fw-bold mb-2">
-            Hola, {MOCK_USER.nombre}
-          </h2>
+          <h2 className="fw-bold mb-2">Hola, {MOCK_USER.nombre}</h2>
           <p className="text-muted mb-3">
-            Desde aquí vas a poder explorar álbumes, encontrar tus fotos mediante reconocimiento facial
-            y revisar tus compras.
+            Desde aquí vas a poder explorar álbumes, encontrar tus fotos mediante
+            reconocimiento facial y revisar tus compras.
           </p>
 
           {/* Resumen numérico */}
@@ -122,8 +118,12 @@ export function MainscreenPage() {
             <div className="col-12 col-md-4">
               <div className="card border-0 shadow-sm h-100">
                 <div className="card-body">
-                  <div className="text-muted small mb-1">Álbumes disponibles</div>
-                  <div className="h4 mb-0">{MOCK_RESUMEN.albumsDisponibles}</div>
+                  <div className="text-muted small mb-1">
+                    Álbumes disponibles
+                  </div>
+                  <div className="h4 mb-0">
+                    {MOCK_RESUMEN.albumsDisponibles}
+                  </div>
                 </div>
               </div>
             </div>
@@ -131,8 +131,12 @@ export function MainscreenPage() {
             <div className="col-12 col-md-4">
               <div className="card border-0 shadow-sm h-100">
                 <div className="card-body">
-                  <div className="text-muted small mb-1">Fotos detectadas para vos</div>
-                  <div className="h4 mb-0">{MOCK_RESUMEN.fotosDetectadas}</div>
+                  <div className="text-muted small mb-1">
+                    Fotos detectadas para vos
+                  </div>
+                  <div className="h4 mb-0">
+                    {MOCK_RESUMEN.fotosDetectadas}
+                  </div>
                   <small className="text-muted">
                     via reconocimiento facial (face-api.js)
                   </small>
@@ -143,8 +147,12 @@ export function MainscreenPage() {
             <div className="col-12 col-md-4">
               <div className="card border-0 shadow-sm h-100">
                 <div className="card-body">
-                  <div className="text-muted small mb-1">Compras realizadas</div>
-                  <div className="h4 mb-0">{MOCK_RESUMEN.comprasRealizadas}</div>
+                  <div className="text-muted small mb-1">
+                    Compras realizadas
+                  </div>
+                  <div className="h4 mb-0">
+                    {MOCK_RESUMEN.comprasRealizadas}
+                  </div>
                   <small className="text-muted">
                     entrega automática por correo
                   </small>
@@ -193,7 +201,7 @@ export function MainscreenPage() {
           </div>
         </section>
 
-        {/* Álbumes recientes */}
+        {/* Álbumes recientes (desde la API) */}
         <section className="mb-4">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-semibold mb-0">Álbumes recientes</h5>
@@ -202,30 +210,41 @@ export function MainscreenPage() {
             </button>
           </div>
 
-          {MOCK_ALBUMS_RECIENTES.length === 0 ? (
+          {loadingAlbums ? (
+            <div className="alert alert-secondary mb-0">
+              Cargando álbumes...
+            </div>
+          ) : errorAlbums ? (
+            <div className="alert alert-danger mb-0">{errorAlbums}</div>
+          ) : albums.length === 0 ? (
             <div className="alert alert-info mb-0">
               Por ahora no hay álbumes recientes disponibles.
             </div>
           ) : (
             <div className="row g-3">
-              {MOCK_ALBUMS_RECIENTES.map((album) => (
-                <div key={album.id} className="col-12 col-md-4 col-lg-3">
+              {albums.map((album) => (
+                <div key={album.idAlbum} className="col-12 col-md-4 col-lg-3">
                   <div className="card h-100 border-0 shadow-sm">
+                    {/* Placeholder de imagen (más adelante: preview real) */}
                     <div
                       style={{
                         width: "100%",
                         paddingTop: "60%",
-                        backgroundImage: `url("${album.imagenPreview}")`,
-                        backgroundSize: "cover",
-                        backgroundPosition: "center",
+                        background:
+                          "linear-gradient(135deg, #0b6623, #2eb897)",
                         borderTopLeftRadius: "0.5rem",
                         borderTopRightRadius: "0.5rem",
                       }}
                     />
                     <div className="card-body">
-                      <h6 className="fw-semibold mb-1">{album.nombre}</h6>
+                      <h6 className="fw-semibold mb-1">
+                        {album.nombreEvento}
+                      </h6>
                       <small className="text-muted d-block">
-                        {album.fecha} · {album.ubicacion}
+                        {new Date(album.fechaEvento).toLocaleDateString(
+                          "es-AR"
+                        )}{" "}
+                        · {album.localizacion}
                       </small>
                       <button className="btn btn-sm btn-outline-secondary mt-2">
                         Ver álbum
@@ -242,8 +261,8 @@ export function MainscreenPage() {
         <section>
           <h5 className="fw-semibold mb-2">Mis últimas fotos</h5>
           <div className="alert alert-secondary mb-0">
-            Próximamente vas a ver aquí una vista previa de las fotos en las que te detectemos automáticamente
-            mediante reconocimiento facial.
+            Próximamente vas a ver aquí una vista previa de las fotos en las
+            que te detectemos automáticamente mediante reconocimiento facial.
           </div>
         </section>
       </main>

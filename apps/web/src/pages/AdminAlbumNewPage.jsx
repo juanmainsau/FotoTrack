@@ -1,28 +1,151 @@
-// apps/web/src/pages/AdminAlbumNewPage.jsx
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
 
 export function AdminAlbumNewPage() {
   const navigate = useNavigate();
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    // Más adelante: enviar datos al backend
-    console.log("Álbum nuevo (mock) enviado");
-  };
+  // -------------------------
+  // Estados del formulario
+  // -------------------------
+  const [form, setForm] = useState({
+    nombreEvento: "",
+    codigo: "",
+    fechaEvento: "",
+    localizacion: "",
+    descripcion: "",
+    precioFoto: "",
+    precioAlbum: "",
+    estado: "Borrador",
+    visibilidad: "Público",
+    tags: "",
+  });
 
-  const handleCancel = () => {
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
+
+  // -------------------------
+  // Estados para carga de imágenes
+  // -------------------------
+  const [createdAlbumId, setCreatedAlbumId] = useState(null);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+  const [uploadedImages, setUploadedImages] = useState([]);
+
+  // -------------------------
+  // Manejo de cambios formulario
+  // -------------------------
+  function handleChange(e) {
+    const { name, value } = e.target;
+    setForm((prev) => ({ ...prev, [name]: value }));
+  }
+
+  // -------------------------
+  // Submit → POST /api/albums
+  // -------------------------
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setLoading(true);
+
+    try {
+      const res = await fetch("http://localhost:4000/api/albums", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) throw new Error("Error en la API");
+
+      const data = await res.json(); // { idAlbum }
+      console.log("Álbum creado:", data);
+
+      setCreatedAlbumId(data.idAlbum);
+      setSuccessMsg(
+        `Álbum creado correctamente (ID ${data.idAlbum}). Ahora podés cargar las fotos.`
+      );
+    } catch (err) {
+      console.error(err);
+      setErrorMsg("No se pudo crear el álbum.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleCancel() {
     navigate("/admin/albums");
-  };
+  }
+
+  // -------------------------
+  // Manejo de archivos seleccionados
+  // -------------------------
+  function handleFilesChange(e) {
+    const files = Array.from(e.target.files || []);
+    setSelectedFiles(files);
+    setUploadError(null);
+  }
+
+  // -------------------------
+  // Subir imágenes → POST /api/albums/:id/upload
+  // -------------------------
+  async function handleUploadImages() {
+    if (!createdAlbumId) {
+      setUploadError("Primero tenés que guardar el álbum.");
+      return;
+    }
+    if (selectedFiles.length === 0) {
+      setUploadError("Seleccioná al menos una imagen.");
+      return;
+    }
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const formData = new FormData();
+
+      selectedFiles.forEach((file) => {
+        formData.append("imagenes", file);
+      });
+
+      const res = await fetch(
+        `http://localhost:4000/api/albums/${createdAlbumId}/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!res.ok) throw new Error("Error al subir imágenes");
+
+      const data = await res.json();
+
+      setUploadedImages((prev) => [
+        ...prev,
+        ...data.insertedImages?.map((img, i) => ({
+          id: img.idImagen || i,
+          ruta: img.ruta || "",
+        })),
+      ]);
+
+      setSelectedFiles([]);
+      setUploadError(null);
+    } catch (err) {
+      console.error(err);
+      setUploadError("Ocurrió un error al subir las imágenes.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
     <div className="d-flex" style={{ minHeight: "100vh" }}>
       {/* SIDEBAR SIMPLE */}
       <aside
         className="border-end d-flex flex-column"
-        style={{
-          width: "260px",
-          backgroundColor: "#f8f9fa",
-        }}
+        style={{ width: "260px", backgroundColor: "#f8f9fa" }}
       >
         <div className="p-4 border-bottom">
           <h4 className="fw-bold mb-0">FotoTrack</h4>
@@ -39,15 +162,6 @@ export function AdminAlbumNewPage() {
           </a>
           <a href="/admin/albums" className="nav-link px-0 py-1 fw-semibold">
             📸 Gestión de álbumes
-          </a>
-          <a href="/admin/users" className="nav-link px-0 py-1">
-            👥 Gestión de usuarios
-          </a>
-          <a href="/admin/reportes" className="nav-link px-0 py-1">
-            📈 Reportes
-          </a>
-          <a href="/admin/auditoria" className="nav-link px-0 py-1">
-            🕵️ Auditoría
           </a>
 
           <hr className="my-3" />
@@ -67,21 +181,21 @@ export function AdminAlbumNewPage() {
 
       {/* CONTENIDO PRINCIPAL */}
       <main className="flex-grow-1 p-4 p-md-5">
-        {/* Título + descripción */}
         <section className="mb-4">
           <h2 className="fw-bold mb-1">Nuevo álbum</h2>
           <p className="text-muted mb-0">
-            Definí los datos del evento, la configuración comercial y las opciones
-            de procesamiento automático. Más adelante vamos a conectar este formulario
-            con la API y la base de datos.
+            Primero cargá los datos del evento. Una vez guardado, podés subir
+            fotos.
           </p>
         </section>
 
+        {errorMsg && <div className="alert alert-danger">{errorMsg}</div>}
+        {successMsg && <div className="alert alert-success">{successMsg}</div>}
+
         <form onSubmit={handleSubmit}>
           <div className="row g-4">
-            {/* Columna izquierda: datos generales */}
+            {/* Columna izquierda */}
             <div className="col-12 col-lg-7">
-              {/* Datos del evento */}
               <section className="mb-4">
                 <h5 className="fw-semibold mb-3">Datos del evento</h5>
 
@@ -89,46 +203,53 @@ export function AdminAlbumNewPage() {
                   <div className="card-body">
                     <div className="mb-3">
                       <label className="form-label">
-                        Nombre del álbum / evento <span className="text-danger">*</span>
+                        Nombre del álbum / evento *
                       </label>
                       <input
+                        name="nombreEvento"
                         type="text"
                         className="form-control"
-                        placeholder="Ej: Desafío MTB Posadas 2025"
+                        placeholder="Ej: Rally MTB Posadas"
+                        value={form.nombreEvento}
+                        onChange={handleChange}
                         required
                       />
                     </div>
 
                     <div className="mb-3">
-                      <label className="form-label">
-                        Código interno del álbum
-                      </label>
+                      <label className="form-label">Código interno</label>
                       <input
+                        name="codigo"
                         type="text"
                         className="form-control"
                         placeholder="Ej: MTB-POS-2025"
+                        value={form.codigo}
+                        onChange={handleChange}
                       />
-                      <div className="form-text">
-                        Este código sirve como identificador interno en la gestión y en los reportes.
-                      </div>
                     </div>
 
                     <div className="row g-3">
                       <div className="col-12 col-md-6">
-                        <label className="form-label">
-                          Fecha del evento <span className="text-danger">*</span>
-                        </label>
-                        <input type="date" className="form-control" required />
+                        <label className="form-label">Fecha *</label>
+                        <input
+                          name="fechaEvento"
+                          type="date"
+                          className="form-control"
+                          value={form.fechaEvento}
+                          onChange={handleChange}
+                          required
+                        />
                       </div>
 
                       <div className="col-12 col-md-6">
-                        <label className="form-label">
-                          Ubicación <span className="text-danger">*</span>
-                        </label>
+                        <label className="form-label">Ubicación *</label>
                         <input
+                          name="localizacion"
                           type="text"
                           className="form-control"
                           placeholder="Ciudad, provincia"
+                          value={form.localizacion}
+                          onChange={handleChange}
                           required
                         />
                       </div>
@@ -137,16 +258,19 @@ export function AdminAlbumNewPage() {
                     <div className="mt-3">
                       <label className="form-label">Descripción</label>
                       <textarea
+                        name="descripcion"
                         className="form-control"
                         rows="3"
-                        placeholder="Información adicional sobre la carrera, categorías, etc."
+                        value={form.descripcion}
+                        onChange={handleChange}
+                        placeholder="Información adicional..."
                       />
                     </div>
                   </div>
                 </div>
               </section>
 
-              {/* Configuración comercial */}
+              {/* Config comercial */}
               <section className="mb-4">
                 <h5 className="fw-semibold mb-3">Configuración comercial</h5>
 
@@ -154,178 +278,162 @@ export function AdminAlbumNewPage() {
                   <div className="card-body">
                     <div className="row g-3">
                       <div className="col-12 col-md-6">
-                        <label className="form-label">
-                          Precio por foto (ARS) <span className="text-danger">*</span>
-                        </label>
+                        <label className="form-label">Precio por foto</label>
                         <input
+                          name="precioFoto"
                           type="number"
-                          min="0"
-                          step="0.01"
                           className="form-control"
-                          placeholder="Ej: 1500"
-                          required
+                          value={form.precioFoto}
+                          onChange={handleChange}
                         />
                       </div>
 
                       <div className="col-12 col-md-6">
-                        <label className="form-label">
-                          Precio por álbum completo (ARS)
-                        </label>
+                        <label className="form-label">Precio álbum</label>
                         <input
+                          name="precioAlbum"
                           type="number"
-                          min="0"
-                          step="0.01"
                           className="form-control"
-                          placeholder="Ej: 18000"
+                          value={form.precioAlbum}
+                          onChange={handleChange}
                         />
-                        <div className="form-text">
-                          Dejar en blanco si no se vende el álbum completo como paquete.
-                        </div>
                       </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* Procesamiento automático */}
-              <section className="mb-4">
-                <h5 className="fw-semibold mb-3">Procesos automáticos</h5>
-
-                <div className="card border-0 shadow-sm">
-                  <div className="card-body">
-                    <p className="text-muted small mb-3">
-                      Estos procesos se ejecutan del lado del servidor cuando se cargan las fotos.
-                      Más adelante se van a vincular con la API y los jobs que procesan imágenes.
-                    </p>
-
-                    <div className="form-check mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="proc-optimizar"
-                        defaultChecked
-                      />
-                      <label className="form-check-label" htmlFor="proc-optimizar">
-                        Optimizar tamaño y peso de las imágenes para visualización web
-                      </label>
-                    </div>
-
-                    <div className="form-check mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="proc-watermark"
-                        defaultChecked
-                      />
-                      <label className="form-check-label" htmlFor="proc-watermark">
-                        Aplicar marca de agua de Resolana Fotografía en las previsualizaciones
-                      </label>
-                    </div>
-
-                    <div className="form-check mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="proc-face"
-                        defaultChecked
-                      />
-                      <label className="form-check-label" htmlFor="proc-face">
-                        Preparar imágenes para reconocimiento facial (face-api.js)
-                      </label>
-                    </div>
-
-                    <div className="form-check mb-2">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="proc-entrega"
-                        defaultChecked
-                      />
-                      <label className="form-check-label" htmlFor="proc-entrega">
-                        Habilitar entrega automática de compras por correo electrónico
-                      </label>
                     </div>
                   </div>
                 </div>
               </section>
             </div>
 
-            {/* Columna derecha: estado, visibilidad y carga de fotos */}
+            {/* Columna derecha */}
             <div className="col-12 col-lg-5">
-              {/* Estado y visibilidad */}
               <section className="mb-4">
                 <h5 className="fw-semibold mb-3">Estado y visibilidad</h5>
 
                 <div className="card border-0 shadow-sm mb-3">
                   <div className="card-body">
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Estado del álbum <span className="text-danger">*</span>
-                      </label>
-                      <select className="form-select" defaultValue="Borrador" required>
-                        <option value="Borrador">Borrador</option>
-                        <option value="Publicado">Publicado</option>
-                        <option value="Archivado">Archivado</option>
-                      </select>
-                    </div>
+                    <label className="form-label">Estado</label>
+                    <select
+                      name="estado"
+                      className="form-select mb-3"
+                      value={form.estado}
+                      onChange={handleChange}
+                    >
+                      <option value="Borrador">Borrador</option>
+                      <option value="Publicado">Publicado</option>
+                      <option value="Archivado">Archivado</option>
+                    </select>
 
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Visibilidad <span className="text-danger">*</span>
-                      </label>
-                      <select className="form-select" defaultValue="Público" required>
-                        <option value="Público">Público (visible para los usuarios)</option>
-                        <option value="Oculto">Oculto (solo visible para admin)</option>
-                      </select>
-                    </div>
+                    <label className="form-label">Visibilidad</label>
+                    <select
+                      name="visibilidad"
+                      className="form-select mb-3"
+                      value={form.visibilidad}
+                      onChange={handleChange}
+                    >
+                      <option value="Público">Público</option>
+                      <option value="Oculto">Oculto</option>
+                    </select>
 
-                    <div className="mb-0">
-                      <label className="form-label">Etiquetas (tags)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Ej: XCO, nocturna, campeonato provincial..."
-                      />
-                      <div className="form-text">
-                        Opcional. Pueden ayudar a búsquedas internas y reportes.
-                      </div>
-                    </div>
+                    <label className="form-label">Etiquetas</label>
+                    <input
+                      name="tags"
+                      type="text"
+                      className="form-control"
+                      value={form.tags}
+                      onChange={handleChange}
+                      placeholder="Ej: XCO, nocturna..."
+                    />
                   </div>
                 </div>
               </section>
 
-              {/* Carga de fotos (placeholder) */}
+              {/* Carga de fotos */}
               <section className="mb-4">
                 <h5 className="fw-semibold mb-3">Carga de fotos</h5>
 
                 <div className="card border-0 shadow-sm">
                   <div className="card-body">
-                    <div
-                      className="border rounded-3 d-flex flex-column justify-content-center align-items-center text-center p-4"
-                      style={{
-                        borderStyle: "dashed",
-                        backgroundColor: "#f8f9fa",
-                      }}
-                    >
-                      <span className="mb-2">📁</span>
-                      <p className="mb-1 fw-semibold">
-                        Arrastrá y soltá las fotos aquí
-                      </p>
-                      <p className="text-muted small mb-2">
-                        O hacé clic para seleccionar archivos desde tu computadora.
-                      </p>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-secondary"
-                      >
-                        Seleccionar archivos
-                      </button>
+                    {!createdAlbumId && (
+                      <div className="alert alert-info">
+                        Guardá el álbum para habilitar la carga de fotos.
+                      </div>
+                    )}
+
+                    <div className="mb-3">
+                      <label className="form-label">Seleccionar imágenes</label>
+                      <input
+                        type="file"
+                        className="form-control"
+                        multiple
+                        accept="image/*"
+                        onChange={handleFilesChange}
+                        disabled={!createdAlbumId || uploading}
+                      />
                     </div>
 
-                    <div className="form-text mt-2">
-                      Esta sección es solo maquetado por ahora. Más adelante se conectará
-                      con el backend para subir archivos, procesarlos y vincularlos al álbum.
-                    </div>
+                    {selectedFiles.length > 0 && (
+                      <div className="small mb-3">
+                        <strong>Archivos seleccionados:</strong>
+                        <ul>
+                          {selectedFiles.map((f) => (
+                            <li key={f.name}>{f.name}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {uploadError && (
+                      <div className="alert alert-danger py-2">
+                        {uploadError}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={handleUploadImages}
+                      disabled={
+                        !createdAlbumId ||
+                        selectedFiles.length === 0 ||
+                        uploading
+                      }
+                    >
+                      {uploading ? "Subiendo..." : "Subir imágenes"}
+                    </button>
+
+                    {uploadedImages.length > 0 && (
+                      <>
+                        <hr />
+                        <div className="small mb-2">
+                          <strong>Imágenes subidas:</strong>
+                        </div>
+
+                        <div className="d-flex flex-wrap gap-2">
+                          {uploadedImages.map((img) => (
+                            <div
+                              key={img.id}
+                              style={{
+                                width: 80,
+                                height: 80,
+                                borderRadius: 8,
+                                overflow: "hidden",
+                                border: "1px solid #ddd",
+                              }}
+                            >
+                              <img
+                                src={`http://localhost:4000/${img.ruta}`}
+                                alt=""
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover",
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </section>
@@ -337,11 +445,17 @@ export function AdminAlbumNewPage() {
                     type="button"
                     className="btn btn-outline-secondary"
                     onClick={handleCancel}
+                    disabled={loading || uploading}
                   >
                     Cancelar
                   </button>
-                  <button type="submit" className="btn btn-ft btn-ft-solid">
-                    Guardar álbum
+
+                  <button
+                    type="submit"
+                    className="btn btn-ft btn-ft-solid"
+                    disabled={loading}
+                  >
+                    {loading ? "Guardando..." : "Guardar álbum"}
                   </button>
                 </div>
               </section>
