@@ -1,28 +1,30 @@
 import sharp from "sharp";
-import { db } from "../config/db.js";
+import * as AlbumService from "../services/album.service.js";
 
 export const crearAlbum = async (req, res) => {
   try {
     const { nombreEvento, fechaEvento, localizacion, descripcion } = req.body;
+    const result = await AlbumService.crearAlbum({
+      nombreEvento,
+      fechaEvento,
+      localizacion,
+      descripcion,
+    });
 
-    const [result] = await db.query(
-      "INSERT INTO album (nombreEvento, fechaEvento, localizacion, descripcion) VALUES (?, ?, ?, ?)",
-      [nombreEvento, fechaEvento, localizacion, descripcion]
-    );
-
-    res.json({ idAlbum: result.insertId });
+    res.json(result);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ msg: "Error al crear álbum" });
+    res.status(500).json({ msg: "Error al crear álbum", error: err.message });
   }
 };
 
 export const obtenerAlbums = async (req, res) => {
   try {
-    const [rows] = await db.query("SELECT * FROM album");
+    const rows = await AlbumService.listarAlbums();
     res.json(rows);
   } catch (err) {
-    res.status(500).json({ msg: "Error al obtener álbumes" });
+    console.error("Error obtenerAlbums:", err);
+    res.status(500).json({ msg: "Error al obtener álbumes", error: err.message });
   }
 };
 
