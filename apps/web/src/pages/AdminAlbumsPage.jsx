@@ -1,50 +1,8 @@
 // apps/web/src/pages/AdminAlbumsPage.jsx
 
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-
-const MOCK_ALBUMS = [
-  {
-    id: 1,
-    nombre: "Fecha XCO Cerro Azul",
-    codigo: "XCO-CA-2025",
-    fechaEvento: "12/10/2025",
-    ubicacion: "Cerro Azul, Misiones",
-    fotosTotales: 320,
-    estado: "Publicado", // Borrador | Publicado | Archivado
-    visibilidad: "Público", // Público | Oculto
-  },
-  {
-    id: 2,
-    nombre: "Desafío MTB Posadas",
-    codigo: "MTB-POS-2025",
-    fechaEvento: "28/09/2025",
-    ubicacion: "Posadas, Misiones",
-    fotosTotales: 245,
-    estado: "Borrador",
-    visibilidad: "Oculto",
-  },
-  {
-    id: 3,
-    nombre: "Travesía Selva Adentro",
-    codigo: "SELVA-OBE-2025",
-    fechaEvento: "14/09/2025",
-    ubicacion: "Oberá, Misiones",
-    fotosTotales: 410,
-    estado: "Publicado",
-    visibilidad: "Público",
-  },
-  {
-    id: 4,
-    nombre: "Nocturna MTB Costanera",
-    codigo: "MTB-NOC-2025",
-    fechaEvento: "01/09/2025",
-    ubicacion: "Posadas, Misiones",
-    fotosTotales: 198,
-    estado: "Archivado",
-    visibilidad: "Oculto",
-  },
-];
+import { fetchAlbums } from "../api/albums";
 
 function EstadoBadge({ estado }) {
   const baseClass = "badge rounded-pill";
@@ -74,11 +32,44 @@ function VisibilidadBadge({ visibilidad }) {
 
 export function AdminAlbumsPage() {
   const navigate = useNavigate();
-  const albums = MOCK_ALBUMS;
+
+  const [albums, setAlbums] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        setLoading(true);
+        const data = await fetchAlbums();
+
+        // Adaptamos los datos reales de la BD al formato que usaba el mock
+        const adaptados = data.map((a) => ({
+          id: a.idAlbum,
+          nombre: a.nombreEvento,
+          codigo: `ALB-${a.idAlbum}`, // placeholder por ahora
+          fechaEvento: new Date(a.fechaEvento).toLocaleDateString("es-AR"),
+          ubicacion: a.localizacion,
+          fotosTotales: "-", // cuando tengamos conteo real, lo reemplazamos
+          estado: a.estado === "activo" ? "Publicado" : "Archivado",
+          visibilidad: "Público", // más adelante esto saldrá de la BD
+        }));
+
+        setAlbums(adaptados);
+      } catch (err) {
+        console.error(err);
+        setError("No se pudieron cargar los álbumes.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    load();
+  }, []);
 
   return (
     <div className="d-flex" style={{ minHeight: "100vh" }}>
-      {/* SIDEBAR LIGERA (versión simple, podríamos reutilizar la del dashboard si queremos) */}
+      {/* SIDEBAR */}
       <aside
         className="border-end d-flex flex-column"
         style={{
@@ -140,15 +131,14 @@ export function AdminAlbumsPage() {
                 type="button"
                 className="btn btn-ft btn-ft-solid btn-sm"
                 onClick={() => navigate("/admin/albums/nuevo")}
-                >
+              >
                 ➕ Nuevo álbum
-                </button>
-
+              </button>
             </div>
           </div>
         </section>
 
-        {/* Filtros */}
+        {/* Filtros (aún sin lógica, solo UI) */}
         <section className="mb-3">
           <div className="card border-0 shadow-sm">
             <div className="card-body">
@@ -161,6 +151,7 @@ export function AdminAlbumsPage() {
                     type="text"
                     className="form-control form-control-sm"
                     placeholder="Ej: Cerro Azul, MTB Posadas..."
+                    // más adelante agregamos estado para filtros
                   />
                 </div>
 
@@ -204,69 +195,88 @@ export function AdminAlbumsPage() {
         <section>
           <div className="card border-0 shadow-sm">
             <div className="card-body p-0">
-              <div className="table-responsive">
-                <table className="table mb-0 align-middle">
-                  <thead>
-                    <tr>
-                      <th scope="col">Nombre del álbum</th>
-                      <th scope="col">Código</th>
-                      <th scope="col">Evento</th>
-                      <th scope="col">Fotos</th>
-                      <th scope="col">Estado</th>
-                      <th scope="col">Visibilidad</th>
-                      <th scope="col" style={{ width: "150px" }}>
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {albums.map((album) => (
-                      <tr key={album.id}>
-                        <td className="fw-semibold">{album.nombre}</td>
-                        <td>
-                          <code className="small">{album.codigo}</code>
-                        </td>
-                        <td>
-                          <div>{album.ubicacion}</div>
-                          <small className="text-muted">
-                            {album.fechaEvento}
-                          </small>
-                        </td>
-                        <td>{album.fotosTotales}</td>
-                        <td>
-                          <EstadoBadge estado={album.estado} />
-                        </td>
-                        <td>
-                          <VisibilidadBadge visibilidad={album.visibilidad} />
-                        </td>
-                        <td>
-                          <div className="btn-group btn-group-sm" role="group">
-                            <button className="btn btn-outline-secondary">
-                              Ver
-                            </button>
-                            <button className="btn btn-outline-secondary">
-                              Editar
-                            </button>
-                            <button className="btn btn-outline-secondary">
-                              ⋮
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+              {loading && (
+                <div className="p-3">
+                  <div className="alert alert-secondary mb-0">
+                    Cargando álbumes...
+                  </div>
+                </div>
+              )}
 
-                    {albums.length === 0 && (
+              {error && (
+                <div className="p-3">
+                  <div className="alert alert-danger mb-0">{error}</div>
+                </div>
+              )}
+
+              {!loading && !error && (
+                <div className="table-responsive">
+                  <table className="table mb-0 align-middle">
+                    <thead>
                       <tr>
-                        <td colSpan={7} className="text-center py-4">
-                          <span className="text-muted">
-                            No se encontraron álbumes con los filtros actuales.
-                          </span>
-                        </td>
+                        <th scope="col">Nombre del álbum</th>
+                        <th scope="col">Código</th>
+                        <th scope="col">Evento</th>
+                        <th scope="col">Fotos</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col">Visibilidad</th>
+                        <th scope="col" style={{ width: "150px" }}>
+                          Acciones
+                        </th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {albums.map((album) => (
+                        <tr key={album.id}>
+                          <td className="fw-semibold">{album.nombre}</td>
+                          <td>
+                            <code className="small">{album.codigo}</code>
+                          </td>
+                          <td>
+                            <div>{album.ubicacion}</div>
+                            <small className="text-muted">
+                              {album.fechaEvento}
+                            </small>
+                          </td>
+                          <td>{album.fotosTotales}</td>
+                          <td>
+                            <EstadoBadge estado={album.estado} />
+                          </td>
+                          <td>
+                            <VisibilidadBadge visibilidad={album.visibilidad} />
+                          </td>
+                          <td>
+                            <div
+                              className="btn-group btn-group-sm"
+                              role="group"
+                            >
+                              <button className="btn btn-outline-secondary">
+                                Ver
+                              </button>
+                              <button className="btn btn-outline-secondary">
+                                Editar
+                              </button>
+                              <button className="btn btn-outline-secondary">
+                                ⋮
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {albums.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="text-center py-4">
+                            <span className="text-muted">
+                              No se encontraron álbumes.
+                            </span>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
         </section>
