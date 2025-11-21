@@ -1,6 +1,9 @@
 // src/api/albums.js
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const raw = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+
+// Normalizar: asegurarse que la URL base incluye '/api' al final
+const API_URL = raw.endsWith('/api') ? raw : raw.replace(/\/+$/, '') + '/api';
 
 export async function fetchAlbums() {
   const response = await fetch(`${API_URL}/albums`);
