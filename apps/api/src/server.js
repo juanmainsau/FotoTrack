@@ -1,31 +1,35 @@
-﻿import express from "express"
-import cors from "cors"
-import helmet from "helmet"
-import morgan from "morgan"
-import "dotenv/config"
-import path from "path"
+﻿import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import "dotenv/config";
+import path from "path";
+import { fileURLToPath } from "url";
 
-import albumRoutes from "./routes/album.routes.js"
+import imageRoutes from "./routes/images.routes.js";  // CORREGIDO
+import albumRoutes from "./routes/album.routes.js";
 
-const app = express()
-const PORT = process.env.PORT || 4000
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-app.use(cors())
-app.use(helmet())
-app.use(express.json())
-app.use(morgan("dev"))
+const app = express();
+const PORT = process.env.PORT || 4000;
+
+app.use(cors());
+app.use(helmet());
+app.use(express.json());
+app.use(morgan("dev"));
+
+app.use("/api/imagenes", imageRoutes);
+app.use("/api/albums", albumRoutes);
 
 // Servir imágenes
-app.use("/uploads", express.static(path.resolve("src/uploads")))
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// Rutas del API
-app.use("/api/albums", albumRoutes)
-
-// Health check
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, service: "fototrack-api" })
-})
+  res.json({ ok: true, service: "fototrack-api" });
+});
 
 app.listen(PORT, () => {
-  console.log(`✔ API running on http://localhost:${PORT}`)
-})
+  console.log(`✔ API running on http://localhost:${PORT}`);
+});

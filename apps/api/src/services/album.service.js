@@ -1,10 +1,28 @@
-// apps/api/src/services/album.service.js
-import * as AlbumRepo from "../repositories/album.repository.js";
+import { albumRepository } from "../repositories/album.repository.js";
 
-export async function listarAlbums() {
-  return await AlbumRepo.getAllAlbums();
-}
+export const albumService = {
 
-export async function crearAlbum(datos) {
-  return await AlbumRepo.createAlbum(datos);
-}
+  async listAlbums() {
+    return await albumRepository.getAll();
+  },
+
+  async createAlbum(data) {
+    if (!data.nombreEvento || !data.fechaEvento || !data.localizacion) {
+      throw new Error("Faltan datos obligatorios del álbum.");
+    }
+
+    return await albumRepository.create(data);
+  },
+
+  async getAlbumById(idAlbum) {
+    return await albumRepository.findById(idAlbum);
+  },
+
+  async eliminarAlbum(idAlbum) {
+    return await albumRepository.eliminarAlbum(idAlbum);
+  },
+
+  async actualizarAlbum(idAlbum, data) {
+    return await albumRepository.actualizarAlbum(idAlbum, data);
+  }
+};

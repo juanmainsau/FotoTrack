@@ -1,21 +1,12 @@
+// src/routes/album.routes.js
 import { Router } from "express";
-import {
-  obtenerAlbums,
-  crearAlbum,
-  uploadAlbumImages,
-} from "../controllers/album.controller.js";
-
-import { uploadImages } from "../middlewares/upload.middleware.js";
+import { albumController } from "../controllers/album.controller.js";
 
 const router = Router();
 
-// Crear álbum
-router.post("/", crearAlbum);
-
-// Listar álbumes
-router.get("/", obtenerAlbums);
-
-// Subir imágenes al álbum
-router.post("/:id/upload", uploadImages.array("imagenes", 50), uploadAlbumImages);
+router.get("/", albumController.getAll);
+router.post("/", albumController.create);
+router.delete("/:id", albumController.eliminar);
+router.put("/:id", albumController.actualizar);
 
 export default router;

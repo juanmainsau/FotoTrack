@@ -1,63 +1,46 @@
-// apps/api/src/repositories/album.repository.js
+// src/repositories/album.repository.js
 import { db } from "../config/db.js";
 
-export async function getAllAlbums() {
-  const tableCandidates = ["album", "ALBUMES", "Album", "albums"];
+export const albumRepository = {
+  async getAll() {
+    const [rows] = await db.query("SELECT * FROM album ORDER BY fechaEvento DESC");
+    return rows;
+  },
 
-  const sqlFields = `
-    idAlbum,
-    nombreEvento,
-    fechaEvento,
-    localizacion,
-    descripcion,
-    estado,
-    fechaCarga
-  `;
+  async create({ nombreEvento, fechaEvento, localizacion, descripcion }) {
+    const [result] = await db.query(
+      `
+      INSERT INTO album (nombreEvento, fechaEvento, localizacion, descripcion)
+      VALUES (?, ?, ?, ?)
+      `,
+      [nombreEvento, fechaEvento, localizacion, descripcion]
+    );
 
-  for (const table of tableCandidates) {
-    try {
-      const [rows] = await db.query(`SELECT ${sqlFields} FROM ${table} ORDER BY fechaEvento DESC`);
-      return rows;
-    } catch (err) {
-      // si la tabla no existe, probamos el siguiente candidato
-      const msg = String(err.message || "").toLowerCase();
-      if (msg.includes("doesn't exist") || msg.includes('does not exist') || msg.includes('unknown table')) {
-        continue;
-      }
-      // si es otro error, re-lanzamos
-      throw err;
-    }
+    return { idAlbum: result.insertId };
+  },
+
+  async findById(idAlbum) {
+    const [rows] = await db.query(
+      `SELECT * FROM album WHERE idAlbum = ?`,
+      [idAlbum]
+    );
+    return rows[0] || null;
+  },
+
+  async eliminarAlbum(idAlbum) {
+    await db.query("DELETE FROM album WHERE idAlbum = ?", [idAlbum]);
+  },
+
+  async actualizarAlbum(idAlbum, data) {
+    const { nombreEvento, fechaEvento, localizacion, descripcion } = data;
+
+    await db.query(
+      `
+      UPDATE album
+      SET nombreEvento = ?, fechaEvento = ?, localizacion = ?, descripcion = ?
+      WHERE idAlbum = ?
+    `,
+      [nombreEvento, fechaEvento, localizacion, descripcion, idAlbum]
+    );
   }
-
-  // Si ninguna tabla existe, lanzar error descriptivo
-  throw new Error("No se encontró la tabla de álbumes en la base de datos (buscadas: album, ALBUMES, Album, albums)");
-}
-
-export async function createAlbum({
-  nombreEvento,
-  fechaEvento,
-  localizacion,
-  descripcion,
-  estado = "activo",
-}) {
-  const insertCandidates = ["album", "ALBUMES", "Album", "albums"];
-
-  for (const table of insertCandidates) {
-    try {
-      const [result] = await db.query(
-        `INSERT INTO ${table} (nombreEvento, fechaEvento, localizacion, descripcion, estado) VALUES (?, ?, ?, ?, ?)`,
-        [nombreEvento, fechaEvento, localizacion, descripcion, estado]
-      );
-
-      return { idAlbum: result.insertId };
-    } catch (err) {
-      const msg = String(err.message || "").toLowerCase();
-      if (msg.includes("doesn't exist") || msg.includes('does not exist') || msg.includes('unknown table')) {
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  throw new Error("No se pudo insertar el álbum: ninguna tabla de álbumes encontrada.");
-}
+};

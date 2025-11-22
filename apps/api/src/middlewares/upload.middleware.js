@@ -1,32 +1,38 @@
+// src/middlewares/upload.middleware.js
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+// Configuración del almacenamiento
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const albumId = req.params.id;
-    const dir = `src/uploads/albums/${albumId}`;
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
+  destination: function (req, file, cb) {
+    const uploadPath = path.resolve("apps/api/src/uploads/original");
+
+    // Crear carpeta si no existe
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
     }
-    cb(null, dir);
+
+    cb(null, uploadPath);
   },
-  filename: (req, file, cb) => {
+
+  filename: function (req, file, cb) {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
-    cb(null, Date.now() + ext);
-  },
+
+    cb(null, unique + ext);
+  }
 });
 
 const fileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/webp"];
-  if (!allowed.includes(file.mimetype)) {
-    return cb(new Error("Tipo de archivo no permitido"), false);
+  // Aceptamos solo imágenes
+  if (!file.mimetype.startsWith("image/")) {
+    return cb(new Error("Solo se permiten imágenes."));
   }
   cb(null, true);
 };
 
-export const uploadImages = multer({
+export const uploadSingleImage = multer({
   storage,
-  fileFilter,
-  limits: { fileSize: 10 * 1024 * 1024 },
-});
+  fileFilter
+}).single("imagen");

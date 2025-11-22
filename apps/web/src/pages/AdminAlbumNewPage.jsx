@@ -88,7 +88,7 @@ export function AdminAlbumNewPage() {
   }
 
   // -------------------------
-  // Subir imágenes → POST /api/albums/:id/upload
+  // Subir imágenes → POST /api/imagenes
   // -------------------------
   async function handleUploadImages() {
     if (!createdAlbumId) {
@@ -104,34 +104,30 @@ export function AdminAlbumNewPage() {
     setUploadError(null);
 
     try {
-      const formData = new FormData();
+      const nuevas = [];
 
-      selectedFiles.forEach((file) => {
-        formData.append("imagenes", file);
-      });
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("idAlbum", createdAlbumId);
+        formData.append("imagen", file);
 
-      const res = await fetch(
-        `http://localhost:4000/api/albums/${createdAlbumId}/upload`,
-        {
+        const res = await fetch("http://localhost:4000/api/imagenes", {
           method: "POST",
           body: formData,
-        }
-      );
+        });
 
-      if (!res.ok) throw new Error("Error al subir imágenes");
+        if (!res.ok) throw new Error("Error al subir imagen");
 
-      const data = await res.json();
+        const data = await res.json(); // { idImagen }
+        nuevas.push({
+          id: data.idImagen,
+          ruta: `uploads/miniaturas/${file.name}`,
+        });
+      }
 
-      setUploadedImages((prev) => [
-        ...prev,
-        ...data.insertedImages?.map((img, i) => ({
-          id: img.idImagen || i,
-          ruta: img.ruta || "",
-        })),
-      ]);
-
+      setUploadedImages((prev) => [...prev, ...nuevas]);
       setSelectedFiles([]);
-      setUploadError(null);
+
     } catch (err) {
       console.error(err);
       setUploadError("Ocurrió un error al subir las imágenes.");

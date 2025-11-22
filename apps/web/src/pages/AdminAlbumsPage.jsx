@@ -1,8 +1,8 @@
-// apps/web/src/pages/AdminAlbumsPage.jsx
+// src/pages/AdminAlbumsPage.jsx
 
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { fetchAlbums } from "../api/albums";
+import { fetchAlbums, deleteAlbum } from "../api/albums";
 
 function EstadoBadge({ estado }) {
   const baseClass = "badge rounded-pill";
@@ -10,7 +10,9 @@ function EstadoBadge({ estado }) {
     case "Publicado":
       return <span className={`${baseClass} text-bg-success`}>Publicado</span>;
     case "Borrador":
-      return <span className={`${baseClass} text-bg-secondary`}>Borrador</span>;
+      return (
+        <span className={`${baseClass} text-bg-secondary`}>Borrador</span>
+      );
     case "Archivado":
       return <span className={`${baseClass} text-bg-warning`}>Archivado</span>;
     default:
@@ -37,35 +39,61 @@ export function AdminAlbumsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        setLoading(true);
-        const data = await fetchAlbums();
+  // -----------------------------------------------------
+  // CARGAR ÁLBUMES DESDE LA API
+  // -----------------------------------------------------
+  async function loadAlbums() {
+    try {
+      setLoading(true);
+      const data = await fetchAlbums();
 
-        // Adaptamos los datos reales de la BD al formato que usaba el mock
-        const adaptados = data.map((a) => ({
-          id: a.idAlbum,
-          nombre: a.nombreEvento,
-          codigo: `ALB-${a.idAlbum}`, // placeholder por ahora
-          fechaEvento: new Date(a.fechaEvento).toLocaleDateString("es-AR"),
-          ubicacion: a.localizacion,
-          fotosTotales: "-", // cuando tengamos conteo real, lo reemplazamos
-          estado: a.estado === "activo" ? "Publicado" : "Archivado",
-          visibilidad: "Público", // más adelante esto saldrá de la BD
-        }));
+      const adaptados = data.map((a) => ({
+        id: a.idAlbum,
+        nombre: a.nombreEvento,
+        codigo: `ALB-${a.idAlbum}`,
+        fechaEvento: new Date(a.fechaEvento).toLocaleDateString("es-AR"),
+        ubicacion: a.localizacion,
+        fotosTotales: "-", // luego reemplazamos cuando contemos imágenes reales
+        estado: a.estado || "Publicado", // la BD usa "activo" por ahora
+        visibilidad: a.visibilidad || "Público", // placeholder
+      }));
 
-        setAlbums(adaptados);
-      } catch (err) {
-        console.error(err);
-        setError("No se pudieron cargar los álbumes.");
-      } finally {
-        setLoading(false);
-      }
+      setAlbums(adaptados);
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los álbumes.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    load();
+  useEffect(() => {
+    loadAlbums();
   }, []);
+
+  // -----------------------------------------------------
+  // ELIMINAR ÁLBUM
+  // -----------------------------------------------------
+  async function handleDelete(id) {
+    const confirmDelete = window.confirm(
+      "¿Seguro que querés eliminar este álbum? Esto eliminará las fotos asociadas."
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+      await deleteAlbum(id);
+      alert("Álbum eliminado correctamente.");
+      loadAlbums();
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo eliminar el álbum.");
+    }
+  }
+
+  // -----------------------------------------------------
+  // RENDER
+  // -----------------------------------------------------
 
   return (
     <div className="d-flex" style={{ minHeight: "100vh" }}>
@@ -126,72 +154,16 @@ export function AdminAlbumsPage() {
               </p>
             </div>
 
-            <div className="d-flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="btn btn-ft btn-ft-solid btn-sm"
-                onClick={() => navigate("/admin/albums/nuevo")}
-              >
-                ➕ Nuevo álbum
-              </button>
-            </div>
+            <button
+              className="btn btn-ft btn-ft-solid btn-sm"
+              onClick={() => navigate("/admin/albums/nuevo")}
+            >
+              ➕ Nuevo álbum
+            </button>
           </div>
         </section>
 
-        {/* Filtros (aún sin lógica, solo UI) */}
-        <section className="mb-3">
-          <div className="card border-0 shadow-sm">
-            <div className="card-body">
-              <div className="row g-3 align-items-end">
-                <div className="col-12 col-md-4">
-                  <label className="form-label small text-muted">
-                    Buscar por nombre, código o ubicación
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control form-control-sm"
-                    placeholder="Ej: Cerro Azul, MTB Posadas..."
-                    // más adelante agregamos estado para filtros
-                  />
-                </div>
-
-                <div className="col-6 col-md-3">
-                  <label className="form-label small text-muted">
-                    Estado
-                  </label>
-                  <select className="form-select form-select-sm">
-                    <option value="">Todos</option>
-                    <option value="Borrador">Borrador</option>
-                    <option value="Publicado">Publicado</option>
-                    <option value="Archivado">Archivado</option>
-                  </select>
-                </div>
-
-                <div className="col-6 col-md-3">
-                  <label className="form-label small text-muted">
-                    Visibilidad
-                  </label>
-                  <select className="form-select form-select-sm">
-                    <option value="">Todas</option>
-                    <option value="Público">Público</option>
-                    <option value="Oculto">Oculto</option>
-                  </select>
-                </div>
-
-                <div className="col-12 col-md-2 d-flex gap-2 justify-content-md-end">
-                  <button className="btn btn-sm btn-outline-secondary">
-                    Limpiar
-                  </button>
-                  <button className="btn btn-sm btn-primary">
-                    Aplicar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Tabla de álbumes */}
+        {/* Tabla */}
         <section>
           <div className="card border-0 shadow-sm">
             <div className="card-body p-0">
@@ -214,50 +186,67 @@ export function AdminAlbumsPage() {
                   <table className="table mb-0 align-middle">
                     <thead>
                       <tr>
-                        <th scope="col">Nombre del álbum</th>
-                        <th scope="col">Código</th>
-                        <th scope="col">Evento</th>
-                        <th scope="col">Fotos</th>
-                        <th scope="col">Estado</th>
-                        <th scope="col">Visibilidad</th>
-                        <th scope="col" style={{ width: "150px" }}>
-                          Acciones
-                        </th>
+                        <th>Nombre del álbum</th>
+                        <th>Código</th>
+                        <th>Evento</th>
+                        <th>Fotos</th>
+                        <th>Estado</th>
+                        <th>Visibilidad</th>
+                        <th style={{ width: "160px" }}>Acciones</th>
                       </tr>
                     </thead>
+
                     <tbody>
                       {albums.map((album) => (
                         <tr key={album.id}>
                           <td className="fw-semibold">{album.nombre}</td>
+
                           <td>
                             <code className="small">{album.codigo}</code>
                           </td>
+
                           <td>
                             <div>{album.ubicacion}</div>
                             <small className="text-muted">
                               {album.fechaEvento}
                             </small>
                           </td>
+
                           <td>{album.fotosTotales}</td>
+
                           <td>
                             <EstadoBadge estado={album.estado} />
                           </td>
+
                           <td>
                             <VisibilidadBadge visibilidad={album.visibilidad} />
                           </td>
+
                           <td>
-                            <div
-                              className="btn-group btn-group-sm"
-                              role="group"
-                            >
-                              <button className="btn btn-outline-secondary">
+                            <div className="btn-group btn-group-sm">
+                              <button
+                                className="btn btn-outline-secondary"
+                                onClick={() =>
+                                  navigate(`/admin/albums/${album.id}`)
+                                }
+                              >
                                 Ver
                               </button>
-                              <button className="btn btn-outline-secondary">
+
+                              <button
+                                className="btn btn-outline-secondary"
+                                onClick={() =>
+                                  navigate(`/admin/albums/editar/${album.id}`)
+                                }
+                              >
                                 Editar
                               </button>
-                              <button className="btn btn-outline-secondary">
-                                ⋮
+
+                              <button
+                                className="btn btn-outline-danger"
+                                onClick={() => handleDelete(album.id)}
+                              >
+                                Eliminar
                               </button>
                             </div>
                           </td>
