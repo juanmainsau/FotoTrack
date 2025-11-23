@@ -1,6 +1,7 @@
-// apps/web/src/pages/Mainscreen.jsx
+// apps/web/src/pages/MainscreenPage.jsx
 
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { fetchAlbums } from "../api/albums";
 
 const MOCK_USER = {
@@ -17,6 +18,9 @@ export function MainscreenPage() {
   const [albums, setAlbums] = useState([]);
   const [loadingAlbums, setLoadingAlbums] = useState(true);
   const [errorAlbums, setErrorAlbums] = useState(null);
+
+  // 🔥 Obtener rol desde localStorage
+  const rol = localStorage.getItem("fototrack-rol");
 
   useEffect(() => {
     async function load() {
@@ -51,7 +55,7 @@ export function MainscreenPage() {
           <small className="text-muted">Panel del usuario</small>
         </div>
 
-        {/* Usuario / avatar mini */}
+        {/* Usuario */}
         <div className="d-flex align-items-center gap-2 px-4 py-3 border-bottom">
           <div
             className="d-flex align-items-center justify-content-center rounded-circle"
@@ -76,28 +80,44 @@ export function MainscreenPage() {
           <span className="text-uppercase text-muted small mb-2">
             Navegación
           </span>
-          <a href="#" className="nav-link px-0 py-1 fw-semibold">
+
+          <Link to="/app/mainscreen" className="nav-link px-0 py-1 fw-semibold">
             🏠 Inicio
-          </a>
-          <a href="/app/albums" className="nav-link px-0 py-1">
+          </Link>
+
+          <Link to="/app/albums" className="nav-link px-0 py-1">
             📸 Explorar álbumes
-          </a>
+          </Link>
+
           <a href="#" className="nav-link px-0 py-1">
             🙂 Mis fotos (reconocimiento facial)
           </a>
+
           <a href="#" className="nav-link px-0 py-1">
             🧾 Mis compras
           </a>
+
           <a href="#" className="nav-link px-0 py-1">
             🛒 Carrito
           </a>
+
           <a href="#" className="nav-link px-0 py-1">
             ⚙️ Mi perfil
           </a>
 
           <hr className="my-2" />
 
-          <a href="#" className="nav-link px-0 py-1 text-danger">
+          {/* 🔥 SOLO ADMIN: Volver al panel */}
+          {rol === "administrador" && (
+            <Link
+              to="/admin"
+              className="nav-link px-0 py-1 fw-semibold text-primary"
+            >
+              ↩ Volver al panel admin
+            </Link>
+          )}
+
+          <a href="/" className="nav-link px-0 py-1 text-danger">
             ⏻ Cerrar sesión
           </a>
         </nav>
@@ -138,7 +158,7 @@ export function MainscreenPage() {
                     {MOCK_RESUMEN.fotosDetectadas}
                   </div>
                   <small className="text-muted">
-                    via reconocimiento facial (face-api.js)
+                    vía reconocimiento facial (face-api.js)
                   </small>
                 </div>
               </div>
@@ -201,7 +221,7 @@ export function MainscreenPage() {
           </div>
         </section>
 
-        {/* Álbumes recientes (desde la API) */}
+        {/* Álbumes recientes */}
         <section className="mb-4">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h5 className="fw-semibold mb-0">Álbumes recientes</h5>
@@ -225,7 +245,6 @@ export function MainscreenPage() {
               {albums.map((album) => (
                 <div key={album.idAlbum} className="col-12 col-md-4 col-lg-3">
                   <div className="card h-100 border-0 shadow-sm">
-                    {/* Placeholder de imagen (más adelante: preview real) */}
                     <div
                       style={{
                         width: "100%",
@@ -257,7 +276,7 @@ export function MainscreenPage() {
           )}
         </section>
 
-        {/* Mis últimas fotos (placeholder por ahora) */}
+        {/* Mis últimas fotos */}
         <section>
           <h5 className="fw-semibold mb-2">Mis últimas fotos</h5>
           <div className="alert alert-secondary mb-0">

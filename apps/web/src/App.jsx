@@ -9,12 +9,14 @@ import { AdminAlbumNewPage } from "./pages/AdminAlbumNewPage.jsx";
 export default function App() {
   return (
     <Routes>
-      {/* Usuario general */}
+      {/* Landing */}
       <Route path="/" element={<LandingPage />} />
+
+      {/* CLIENTE */}
       <Route path="/app/mainscreen" element={<MainscreenPage />} />
       <Route path="/app/albums" element={<ExploreAlbumsPage />} />
 
-      {/* Administrador */}
+      {/* ADMIN */}
       <Route path="/admin" element={<AdminDashboardPage />} />
       <Route path="/admin/albums" element={<AdminAlbumsPage />} />
       <Route path="/admin/albums/nuevo" element={<AdminAlbumNewPage />} />

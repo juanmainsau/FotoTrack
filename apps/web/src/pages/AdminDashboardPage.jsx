@@ -1,5 +1,7 @@
 // apps/web/src/pages/AdminDashboardPage.jsx
 
+import { Link } from "react-router-dom";
+
 const MOCK_ADMIN_RESUMEN = {
   albumsPublicados: 12,
   fotosProcesadas: 1840,
@@ -51,30 +53,35 @@ export function AdminDashboardPage() {
             Navegación
           </span>
 
-          <a href="/admin" className="nav-link px-0 py-1 fw-semibold">
+          <Link to="/admin" className="nav-link px-0 py-1 fw-semibold">
             📊 Dashboard
-          </a>
-          <a href="/admin/albums" className="nav-link px-0 py-1">
+          </Link>
+
+          <Link to="/admin/albums" className="nav-link px-0 py-1">
             📸 Gestión de álbumes e imágenes
-          </a>
-          <a href="/admin/users" className="nav-link px-0 py-1">
+          </Link>
+
+          <Link to="/admin/users" className="nav-link px-0 py-1">
             👥 Gestión de usuarios
-          </a>
-          <a href="/admin/reportes" className="nav-link px-0 py-1">
+          </Link>
+
+          <Link to="/admin/reportes" className="nav-link px-0 py-1">
             📈 Reportes
-          </a>
-          <a href="/admin/auditoria" className="nav-link px-0 py-1">
+          </Link>
+
+          <Link to="/admin/auditoria" className="nav-link px-0 py-1">
             🕵️ Auditoría del sistema
-          </a>
+          </Link>
 
           <hr className="my-3" />
 
-          <a href="/app/mainscreen" className="nav-link px-0 py-1">
+          <Link to="/app/mainscreen" className="nav-link px-0 py-1">
             ↩ Ver vista de usuario
-          </a>
-          <a href="#" className="nav-link px-0 py-1 text-danger">
+          </Link>
+
+          <Link to="/" className="nav-link px-0 py-1 text-danger">
             ⏻ Cerrar sesión
-          </a>
+          </Link>
         </nav>
       </aside>
 
@@ -139,7 +146,7 @@ export function AdminDashboardPage() {
           </div>
         </section>
 
-        {/* Accesos rápidos admin */}
+        {/* Accesos rápidos */}
         <section className="mb-4">
           <h5 className="fw-semibold mb-3">Accesos rápidos</h5>
           <div className="row g-3">
@@ -202,7 +209,7 @@ export function AdminDashboardPage() {
           </div>
         </section>
 
-        {/* Placeholder de próximas secciones */}
+        {/* Placeholder */}
         <section>
           <h5 className="fw-semibold mb-2">Tareas pendientes</h5>
           <div className="alert alert-secondary mb-0">

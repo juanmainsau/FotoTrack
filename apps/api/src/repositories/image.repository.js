@@ -14,7 +14,6 @@ export const imageRepository = {
     return { idImagen: result.insertId };
   },
 
-
   async getByAlbum(idAlbum) {
     const [rows] = await db.query(
       `

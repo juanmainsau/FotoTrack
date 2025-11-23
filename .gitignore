@@ -6,3 +6,4 @@ dist
 pnpm-lock.yaml
 coverage
 .DS_Store
+apps/api/firebase-service-account.json

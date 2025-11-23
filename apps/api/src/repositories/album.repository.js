@@ -1,4 +1,3 @@
-// src/repositories/album.repository.js
 import { db } from "../config/db.js";
 
 export const albumRepository = {
@@ -39,7 +38,7 @@ export const albumRepository = {
       UPDATE album
       SET nombreEvento = ?, fechaEvento = ?, localizacion = ?, descripcion = ?
       WHERE idAlbum = ?
-    `,
+      `,
       [nombreEvento, fechaEvento, localizacion, descripcion, idAlbum]
     );
   }
