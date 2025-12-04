@@ -7,11 +7,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const require = createRequire(import.meta.url);
 
-// Ruta ABSOLUTA al archivo JSON
-const serviceAccount = require(path.join(__dirname, "../../firebase-service-account.json"));
+// Carga del archivo JSON del Admin SDK (asegurate de que el nombre coincida)
+const serviceAccount = require(
+  path.join(__dirname, "./serviceAccountKey.json")
+);
 
+// Inicialización de Firebase Admin
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
+// Exportar instancia de auth (útil si necesitás usarla)
+const auth = admin.auth();
+
+export { auth };
 export default admin;

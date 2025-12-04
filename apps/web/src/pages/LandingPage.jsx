@@ -1,11 +1,20 @@
+// firebase login + register + google (nuevo sistema)
 import { useState } from "react";
-import { signInWithPopup } from "firebase/auth";
+import { 
+  signInWithPopup, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword 
+} from "firebase/auth";
 import { auth, googleProvider } from "../firebase";
+
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
+import EyeOpenIcon from "../assets/icons/ojo-abierto.png";
+import EyeClosedIcon from "../assets/icons/ojo-cerrado.png";
+
 export default function LandingPage() {
-  const [mode, setMode] = useState("login"); // login | register
+  const [mode, setMode] = useState("login"); 
   const isLogin = mode === "login";
 
   return (
@@ -20,7 +29,7 @@ export default function LandingPage() {
       >
         <h1 className="fw-bold mb-3">FotoTrack</h1>
         <p className="fw-semibold mb-4">
-          Sistema de gestión de fotografías para eventos MTB
+          Sistema web para la gestión comercial de fotografías de eventos
         </p>
 
         <p className="small text-muted">
@@ -79,7 +88,6 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* CONTENIDO */}
           {isLogin ? <LoginForm /> : <RegisterForm />}
         </div>
       </div>
@@ -88,28 +96,74 @@ export default function LandingPage() {
 }
 
 /* ==========================================================
-   LOGIN TRADICIONAL + GOOGLE LOGIN
+   COMPONENTE: INPUT PASSWORD
    ========================================================== */
+function PasswordInput({ value, onChange, placeholder, className = "" }) {
+  const [show, setShow] = useState(false);
 
+  return (
+    <div className="position-relative">
+      <input
+        type={show ? "text" : "password"}
+        className={`form-control ${className}`}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+      />
+
+      <img
+        src={show ? EyeOpenIcon : EyeClosedIcon}
+        onClick={() => setShow(!show)}
+        alt="toggle visibility"
+        style={{
+          position: "absolute",
+          right: "10px",
+          top: "50%",
+          transform: "translateY(-50%)",
+          width: "22px",
+          height: "22px",
+          cursor: "pointer",
+          opacity: 0.7,
+        }}
+      />
+    </div>
+  );
+}
+
+/* ==========================================================
+   LOGIN (Firebase email/password + Google)
+   ========================================================== */
 function LoginForm() {
   const navigate = useNavigate();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
 
+  function redirectByRole(user) {
+    if (user.rol === "admin") {
+      navigate("/admin");
+    } else {
+      navigate("/app/mainscreen");
+    }
+  }
+
   async function handleLogin(e) {
     e.preventDefault();
 
     try {
-      const res = await axios.post("http://localhost:4000/auth/login", {
-        correo,
-        password, // 🔥 Corregido: antes enviabas "contrasena"
+      const userCred = await signInWithEmailAndPassword(auth, correo, password);
+      const idToken = await userCred.user.getIdToken();
+
+      const res = await axios.post("http://localhost:4000/api/auth/login", {
+        idToken,
       });
 
-      localStorage.setItem("fototrack-token", res.data.token);
-      localStorage.setItem("fototrack-rol", res.data.rol);
+      console.log("USUARIO DEL BACKEND:", res.data.user);
 
-      if (res.data.rol === "administrador") navigate("/admin");
-      else navigate("/app/mainscreen");
+      localStorage.setItem("fototrack-token", res.data.token);
+      localStorage.setItem("fototrack-user", JSON.stringify(res.data.user));
+
+      redirectByRole(res.data.user);
     } catch (err) {
       console.error(err);
       alert("Correo o contraseña inválidos");
@@ -121,15 +175,16 @@ function LoginForm() {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
 
-      const res = await axios.post("http://localhost:4000/auth/google", {
-        token: idToken,
+      const res = await axios.post("http://localhost:4000/api/auth/google", {
+        idToken,
       });
 
-      localStorage.setItem("fototrack-token", res.data.token);
-      localStorage.setItem("fototrack-rol", res.data.rol);
+      console.log("USUARIO DEL BACKEND:", res.data.user);
 
-      if (res.data.rol === "administrador") navigate("/admin");
-      else navigate("/app/mainscreen");
+      localStorage.setItem("fototrack-token", res.data.token);
+      localStorage.setItem("fototrack-user", JSON.stringify(res.data.user));
+
+      redirectByRole(res.data.user);
     } catch (err) {
       console.error("Google Login Error:", err);
       alert("Error al iniciar sesión con Google");
@@ -152,13 +207,11 @@ function LoginForm() {
           required
         />
 
-        <input
-          type="password"
-          className="form-control mb-3"
-          placeholder="Contraseña"
+        <PasswordInput
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
+          onChange={setPassword}
+          placeholder="Contraseña"
+          className="mb-3"
         />
 
         <button type="submit" className="btn btn-success w-100 mb-3">
@@ -174,27 +227,45 @@ function LoginForm() {
 }
 
 /* ==========================================================
-   REGISTRO TRADICIONAL + GOOGLE REGISTER
+   REGISTRO (Firebase)
    ========================================================== */
-
 function RegisterForm() {
   const navigate = useNavigate();
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
+  const [errorPass, setErrorPass] = useState("");
+
+  function redirectByRole(user) {
+    if (user.rol === "admin") {
+      navigate("/admin");
+    } else {
+      navigate("/app/mainscreen");
+    }
+  }
 
   async function handleRegister(e) {
     e.preventDefault();
 
+    if (password !== password2) {
+      setErrorPass("Las contraseñas no coinciden");
+      return;
+    }
+
     try {
-      const res = await axios.post("http://localhost:4000/auth/register", {
-        correo,
-        password, // 🔥 Corregido: antes enviabas "contrasena"
+      const userCred = await createUserWithEmailAndPassword(auth, correo, password);
+      const idToken = await userCred.user.getIdToken();
+
+      const res = await axios.post("http://localhost:4000/api/auth/register", {
+        idToken,
       });
 
-      localStorage.setItem("fototrack-token", res.data.token);
-      localStorage.setItem("fototrack-rol", res.data.rol);
+      console.log("USUARIO DEL BACKEND:", res.data.user);
 
-      navigate("/app/mainscreen");
+      localStorage.setItem("fototrack-token", res.data.token);
+      localStorage.setItem("fototrack-user", JSON.stringify(res.data.user));
+
+      redirectByRole(res.data.user);
     } catch (err) {
       console.error(err);
       alert("No se pudo crear la cuenta");
@@ -206,14 +277,16 @@ function RegisterForm() {
       const result = await signInWithPopup(auth, googleProvider);
       const idToken = await result.user.getIdToken();
 
-      const res = await axios.post("http://localhost:4000/auth/google", {
-        token: idToken,
+      const res = await axios.post("http://localhost:4000/api/auth/google", {
+        idToken,
       });
 
-      localStorage.setItem("fototrack-token", res.data.token);
-      localStorage.setItem("fototrack-rol", res.data.rol);
+      console.log("USUARIO DEL BACKEND:", res.data.user);
 
-      navigate("/app/mainscreen");
+      localStorage.setItem("fototrack-token", res.data.token);
+      localStorage.setItem("fototrack-user", JSON.stringify(res.data.user));
+
+      redirectByRole(res.data.user);
     } catch (err) {
       console.error("Google Register Error:", err);
       alert("Error registrando con Google");
@@ -236,14 +309,23 @@ function RegisterForm() {
           required
         />
 
-        <input
-          type="password"
-          className="form-control mb-3"
-          placeholder="Contraseña"
+        <PasswordInput
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
+          onChange={setPassword}
+          placeholder="Contraseña"
+          className="mb-2"
         />
+
+        <PasswordInput
+          value={password2}
+          onChange={setPassword2}
+          placeholder="Repetir contraseña"
+          className="mb-1"
+        />
+
+        {errorPass && (
+          <div className="text-danger small mb-2">{errorPass}</div>
+        )}
 
         <button type="submit" className="btn btn-success w-100 mb-3">
           Registrar cuenta

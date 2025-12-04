@@ -1,137 +1,154 @@
 // src/services/auth.service.js
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { db } from "../config/db.js";
 import admin from "../config/firebaseAdmin.js";
-import { userRepository } from "../repositories/user.repository.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecretkey";
-
-// Normaliza el usuario que viene de la DB
-function normalizeUser(dbUser) {
-  if (!dbUser) return null;
-
-  const id =
-    dbUser.idUsuario !== undefined ? dbUser.idUsuario : dbUser.id || null;
-
-  return {
-    id,
-    correo: dbUser.correo,
-    nombre: dbUser.nombre || "",
-    rol: dbUser.rol || "cliente",
-    firebase_uid: dbUser.firebase_uid || null,
-  };
-}
-
-function signToken(user) {
+/**
+ * Genera un JWT interno para FotoTrack
+ */
+function generarToken(user) {
   return jwt.sign(
     {
-      id: user.id,
+      idUsuario: user.idUsuario,
       correo: user.correo,
-      rol: user.rol,
+      rol: user.rol,  // 👈 ahora contiene el rol verdadero
     },
-    JWT_SECRET,
+    process.env.JWT_SECRET,
     { expiresIn: "7d" }
   );
 }
 
-export const authService = {
-  // Registro tradicional: correo + contraseña
-  async register({ correo, password }) {
-    const existing = await userRepository.findByEmail(correo);
-    if (existing) {
-      const error = new Error("EMAIL_IN_USE");
-      error.code = "EMAIL_IN_USE";
-      throw error;
-    }
+/**
+ * findOrCreateUser
+ * Ahora respeta el rol proveniente de Firebase
+ */
+async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, firebaseRole }) {
+  // Buscar usuario en BD
+  const [rows] = await db.query(
+    `SELECT * FROM usuarios WHERE correo = ? LIMIT 1`,
+    [correo]
+  );
 
-    const hash = await bcrypt.hash(password, 10);
+  let user;
 
-    const created = await userRepository.createTraditionalUser({
+  if (rows.length === 0) {
+    // Usuario NO existe → crear nuevo
+    const [result] = await db.query(
+      `INSERT INTO usuarios 
+        (firebase_uid, nombre, apellido, correo, foto, rol, estado)
+        VALUES (?, ?, ?, ?, ?, ?, 'activo')`,
+      [
+        firebaseUid,
+        nombre || "",
+        apellido || "",
+        correo,
+        foto,
+        firebaseRole || "cliente",  // 👈 ahora toma el rol del token Firebase
+      ]
+    );
+
+    user = {
+      idUsuario: result.insertId,
+      nombre: nombre || "",
+      apellido: apellido || "",
       correo,
-      passwordHash: hash,
-    });
+      foto,
+      rol: firebaseRole || "cliente",
+    };
+  } else {
+    // Usuario EXISTE → actualizar datos y rol si cambió
+    user = rows[0];
 
-    const user = normalizeUser({
-      id: created.id,
-      correo: created.correo,
-      rol: created.rol,
-    });
+    const nuevoRol = firebaseRole || user.rol;
 
-    const token = signToken(user);
+    await db.query(
+      `UPDATE usuarios 
+       SET nombre=?, apellido=?, foto=?, rol=?
+       WHERE idUsuario=?`,
+      [
+        nombre || user.nombre,
+        apellido || user.apellido,
+        foto || user.foto,
+        nuevoRol,                // 👈 actualizamos rol en DB
+        user.idUsuario,
+      ]
+    );
 
-    return { token, user };
-  },
+    user = {
+      ...user,
+      nombre: nombre || user.nombre,
+      apellido: apellido || user.apellido,
+      foto: foto || user.foto,
+      rol: nuevoRol,
+    };
+  }
 
-  // Login tradicional: correo + contraseña
-  async login({ correo, password }) {
-    const dbUser = await userRepository.findByEmail(correo);
+  // Crear token interno con el rol real
+  const token = generarToken(user);
 
-    if (!dbUser || !dbUser.contrasena) {
-      const error = new Error("INVALID_CREDENTIALS");
-      error.code = "INVALID_CREDENTIALS";
-      throw error;
-    }
+  return { user, token };
+}
 
-    const isValid = await bcrypt.compare(password, dbUser.contrasena);
-    if (!isValid) {
-      const error = new Error("INVALID_CREDENTIALS");
-      error.code = "INVALID_CREDENTIALS";
-      throw error;
-    }
-
-    const user = normalizeUser(dbUser);
-    const token = signToken(user);
-
-    return { token, user };
-  },
-
-  // Login / registro con Google + vinculación
-  async loginWithGoogle(idToken) {
-    // 1) Verificar token de Firebase
+export const authService = {
+  // --------------------------------------------------------------
+  // REGISTRO (Firebase)
+  // --------------------------------------------------------------
+  async registerWithToken(idToken) {
     const decoded = await admin.auth().verifyIdToken(idToken);
-    const { uid, email, name } = decoded;
 
-    if (!email) {
-      const error = new Error("GOOGLE_WITHOUT_EMAIL");
-      error.code = "GOOGLE_WITHOUT_EMAIL";
-      throw error;
-    }
+    if (!decoded.email) throw new Error("La cuenta no tiene correo.");
 
-    // 2) ¿Existe por firebase_uid?
-    let dbUser = await userRepository.findByFirebaseUid(uid);
+    const firebaseRole = decoded.role || "cliente"; // 👈 extraemos rol real
 
-    if (!dbUser) {
-      // 3) ¿Existe cuenta tradicional con ese correo?
-      const byEmail = await userRepository.findByEmail(email);
-
-      if (byEmail) {
-        // Vinculamos Google a cuenta existente
-        dbUser = await userRepository.linkGoogleAccountByEmail({
-          firebaseUid: uid,
-          correo: email,
-        });
-      } else {
-        // 4) Crear usuario nuevo a partir de Google
-        const created = await userRepository.createGoogleUser({
-          firebaseUid: uid,
-          correo: email,
-          nombre: name,
-        });
-
-        // Simulamos un "dbUser" completo
-        dbUser = {
-          id: created.id,
-          correo: created.correo,
-          nombre: created.nombre,
-          rol: created.rol,
-          firebase_uid: created.firebase_uid,
-        };
-      }
-    }
-
-    const user = normalizeUser(dbUser);
-    const token = signToken(user);
-
-    return { token, user };
+    return await findOrCreateUser({
+      firebaseUid: decoded.uid,
+      correo: decoded.email,
+      nombre: decoded.name || "",
+      apellido: decoded.family_name || "",
+      foto: decoded.picture || null,
+      firebaseRole,
+    });
   },
+
+  // --------------------------------------------------------------
+  // LOGIN TRADICIONAL (Firebase email/password)
+  // --------------------------------------------------------------
+  async loginWithToken(idToken) {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
+    if (!decoded.email) throw new Error("Credenciales inválidas");
+
+    const firebaseRole = decoded.role || "cliente";
+
+    return await findOrCreateUser({
+      firebaseUid: decoded.uid,
+      correo: decoded.email,
+      nombre: decoded.name || "",
+      apellido: decoded.family_name || "",
+      foto: decoded.picture || null,
+      firebaseRole,
+    });
+  },
+
+  // --------------------------------------------------------------
+  // LOGIN / REGISTRO GOOGLE
+  // --------------------------------------------------------------
+  async loginWithGoogle(idToken) {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+
+    if (!decoded.email) throw new Error("Cuenta Google sin correo");
+
+    const firebaseRole = decoded.role || "cliente";
+
+    return await findOrCreateUser({
+      firebaseUid: decoded.uid,
+      correo: decoded.email,
+      nombre: decoded.name || "",
+      apellido: decoded.family_name || "",
+      foto: decoded.picture || null,
+      firebaseRole,
+    });
+  },
+
+  findOrCreateUser,
 };

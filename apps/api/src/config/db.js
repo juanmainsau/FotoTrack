@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+// 🔥 AQUÍ CREAMOS Y EXPORTAMOS db COMO EXPORT NOMBRADO
 export const db = mysql.createPool({
   host: process.env.DB_HOST || "localhost",
   user: process.env.DB_USER || "root",

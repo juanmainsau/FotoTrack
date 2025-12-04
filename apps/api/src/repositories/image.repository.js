@@ -2,13 +2,13 @@
 import { db } from "../config/db.js";
 
 export const imageRepository = {
-  async create({ idAlbum, nombreArchivo, rutaOriginal, rutaProcesada, rutaMiniatura }) {
+  async create({ idAlbum, rutaOriginal, rutaMiniatura, rutaOptimizado, public_id }) {
     const [result] = await db.query(
       `
-      INSERT INTO imagenes (idAlbum, nombreArchivo, rutaOriginal, rutaProcesada, rutaMiniatura)
+      INSERT INTO imagenes (idAlbum, rutaOriginal, rutaMiniatura, rutaOptimizado, public_id)
       VALUES (?, ?, ?, ?, ?)
       `,
-      [idAlbum, nombreArchivo, rutaOriginal, rutaProcesada, rutaMiniatura]
+      [idAlbum, rutaOriginal, rutaMiniatura, rutaOptimizado, public_id]
     );
 
     return { idImagen: result.insertId };
@@ -17,7 +17,8 @@ export const imageRepository = {
   async getByAlbum(idAlbum) {
     const [rows] = await db.query(
       `
-      SELECT * FROM imagenes
+      SELECT *
+      FROM imagenes
       WHERE idAlbum = ?
       ORDER BY idImagen DESC
       `,
@@ -25,5 +26,28 @@ export const imageRepository = {
     );
 
     return rows;
-  }
+  },
+
+  async getImageById(idImagen) {
+    const [rows] = await db.query(
+      `
+      SELECT *
+      FROM imagenes
+      WHERE idImagen = ?
+      LIMIT 1
+      `,
+      [idImagen]
+    );
+    return rows[0];
+  },
+
+  async deleteImageById(idImagen) {
+    await db.query(
+      `
+      DELETE FROM imagenes
+      WHERE idImagen = ?
+      `,
+      [idImagen]
+    );
+  },
 };

@@ -1,38 +1,33 @@
 // src/middlewares/upload.middleware.js
 import multer from "multer";
 import path from "path";
-import fs from "fs";
+import os from "os";
 
-// Configuración del almacenamiento
+// Guardar archivos temporalmente en carpeta del sistema
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.resolve("apps/api/src/uploads/original");
-
-    // Crear carpeta si no existe
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-
-    cb(null, uploadPath);
+  destination: (req, file, cb) => {
+    // carpeta temporal del sistema operativo
+    cb(null, os.tmpdir());
   },
-
-  filename: function (req, file, cb) {
-    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "_" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
-
     cb(null, unique + ext);
-  }
+  },
 });
 
-const fileFilter = (req, file, cb) => {
-  // Aceptamos solo imágenes
-  if (!file.mimetype.startsWith("image/")) {
-    return cb(new Error("Solo se permiten imágenes."));
-  }
-  cb(null, true);
+// Configuración común (20 MB por archivo)
+const multerConfig = {
+  storage,
+  limits: { fileSize: 20 * 1024 * 1024 }, // 20 MB
 };
 
-export const uploadSingleImage = multer({
-  storage,
-  fileFilter
-}).single("imagen");
+// 🔹 Para endpoints que suben UNA sola imagen (lo que ya tenías)
+export const uploadSingleImage = multer(multerConfig).single("imagen");
+
+// 🔹 Para el nuevo flujo de crear álbum completo (MÚLTIPLES imágenes)
+// El nombre del campo debe coincidir con formData.append("imagenes", file)
+export const uploadMultipleImages = multer(multerConfig).array(
+  "imagenes",
+  200 // por ejemplo, máximo 200 archivos en una sola request
+);

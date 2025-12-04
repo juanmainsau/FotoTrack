@@ -18,6 +18,15 @@ export const userRepository = {
     return rows[0] || null;
   },
 
+  // ⭐ NUEVO — buscar por idUsuario
+  async findById(idUsuario) {
+    const [rows] = await db.query(
+      "SELECT * FROM usuarios WHERE idUsuario = ? LIMIT 1",
+      [idUsuario]
+    );
+    return rows[0] || null;
+  },
+
   async createTraditionalUser({ correo, passwordHash }) {
     const [result] = await db.query(
       `

@@ -206,7 +206,7 @@ export function ExploreAlbumsPage() {
                       {/* MINIATURA */}
                       {imgData.thumbnail ? (
                         <img
-                          src={`http://localhost:4000/${imgData.thumbnail}`}
+                          src={imgData.thumbnail}
                           style={{
                             width: "100%",
                             height: "160px",
