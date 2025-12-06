@@ -18,7 +18,7 @@ export const userRepository = {
     return rows[0] || null;
   },
 
-  // ⭐ NUEVO — buscar por idUsuario
+  // ⭐ Buscar por ID
   async findById(idUsuario) {
     const [rows] = await db.query(
       "SELECT * FROM usuarios WHERE idUsuario = ? LIMIT 1",
@@ -72,5 +72,17 @@ export const userRepository = {
     );
 
     return this.findByEmail(correo);
+  },
+
+  // ⭐⭐⭐ NUEVO — Necesario para asignar el carrito al usuario
+  async updateUserCart(idUsuario, idCarrito) {
+    await db.query(
+      `
+      UPDATE usuarios
+      SET idCarrito = ?
+      WHERE idUsuario = ?
+      `,
+      [idCarrito, idUsuario]
+    );
   },
 };

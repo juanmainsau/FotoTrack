@@ -17,18 +17,24 @@ async function deleteAlbum(id) {
   });
 }
 
+// BADGES
 function EstadoBadge({ estado }) {
   const base = "badge rounded-pill";
-  switch (estado) {
-    case "Publicado":
-      return <span className={`${base} text-bg-success`}>Publicado</span>;
-    case "Borrador":
-      return <span className={`${base} text-bg-secondary`}>Borrador</span>;
-    case "Archivado":
-      return <span className={`${base} text-bg-warning`}>Archivado</span>;
-    default:
-      return <span className={base}>{estado}</span>;
+  const valor = (estado || "").toLowerCase();
+
+  if (valor === "publicado" || valor === "activo") {
+    return <span className={`${base} text-bg-success`}>Publicado</span>;
   }
+
+  if (valor === "borrador") {
+    return <span className={`${base} text-bg-secondary`}>Borrador</span>;
+  }
+
+  if (valor === "archivado") {
+    return <span className={`${base} text-bg-warning`}>Archivado</span>;
+  }
+
+  return <span className={base}>{estado}</span>;
 }
 
 function VisibilidadBadge({ visibilidad }) {
@@ -92,13 +98,13 @@ export function AdminAlbumsPage() {
 
   async function handleDelete(id) {
     const confirmar = window.confirm(
-      "¿Seguro que querés eliminar este álbum? Esto eliminará todas las fotos asociadas."
+      "¿Seguro que querés archivar este álbum? No se borran las fotos; solo se ocultará del catálogo público. Podés reactivarlo editando el álbum más adelante."
     );
     if (!confirmar) return;
 
     try {
       await deleteAlbum(id);
-      alert("Álbum eliminado.");
+      alert("Álbum archivado.");
       loadAlbums();
     } catch (err) {
       console.error(err);
@@ -130,7 +136,6 @@ export function AdminAlbumsPage() {
 
   return (
     <div className="p-4 p-md-5">
-
       {/* HEADER */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -150,24 +155,25 @@ export function AdminAlbumsPage() {
 
       <div className="card border-0 shadow-sm">
         <div className="card-body p-0">
+          {loading && <div className="p-3">Cargando álbumes...</div>}
 
-          {loading && (
-            <div className="p-3">Cargando álbumes...</div>
+          {!loading && error && (
+            <div className="p-3 text-danger">{error}</div>
           )}
 
           {!loading && !error && (
             <div className="table-responsive">
-              <table className="table mb-0 align-middle">
-                <thead>
+              <table className="table align-middle mb-0">
+                <thead className="table-light">
                   <tr>
-                    <th></th>
+                    <th style={{ width: 80 }}>Miniatura</th>
                     <th>Nombre</th>
                     <th>Código</th>
-                    <th>Evento</th>
+                    <th>Ubicación / Fecha</th>
                     <th>Fotos</th>
                     <th>Estado</th>
                     <th>Visibilidad</th>
-                    <th className="text-center" style={{ width: "160px" }}>
+                    <th className="text-center" style={{ width: 140 }}>
                       Acciones
                     </th>
                   </tr>
@@ -176,7 +182,6 @@ export function AdminAlbumsPage() {
                 <tbody>
                   {albums.map((album) => (
                     <tr key={album.id}>
-
                       {/* MINIATURA */}
                       <td>
                         {album.miniatura ? (
@@ -204,23 +209,30 @@ export function AdminAlbumsPage() {
 
                       <td className="fw-semibold">{album.nombre}</td>
 
-                      <td><code>{album.codigo}</code></td>
+                      <td>
+                        <code>{album.codigo}</code>
+                      </td>
 
                       <td>
                         {album.ubicacion}
                         <br />
-                        <small className="text-muted">{album.fechaEvento}</small>
+                        <small className="text-muted">
+                          {album.fechaEvento}
+                        </small>
                       </td>
 
                       <td>{album.fotosTotales}</td>
 
-                      <td><EstadoBadge estado={album.estado} /></td>
+                      <td>
+                        <EstadoBadge estado={album.estado} />
+                      </td>
 
-                      <td><VisibilidadBadge visibilidad={album.visibilidad} /></td>
+                      <td>
+                        <VisibilidadBadge visibilidad={album.visibilidad} />
+                      </td>
 
                       <td>
                         <div className="d-flex justify-content-center gap-2">
-
                           {/* EDITAR */}
                           <button
                             className="btn btn-outline-primary btn-sm"
@@ -230,15 +242,14 @@ export function AdminAlbumsPage() {
                             ✏️
                           </button>
 
-                          {/* ELIMINAR */}
+                          {/* ARCHIVAR */}
                           <button
                             className="btn btn-outline-danger btn-sm"
                             onClick={() => handleDelete(album.id)}
-                            title="Eliminar"
+                            title="Archivar"
                           >
                             🗑️
                           </button>
-
                         </div>
                       </td>
                     </tr>
@@ -246,13 +257,15 @@ export function AdminAlbumsPage() {
 
                   {albums.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center py-4 text-muted">
+                      <td
+                        colSpan={8}
+                        className="text-center py-4 text-muted"
+                      >
                         No hay álbumes cargados.
                       </td>
                     </tr>
                   )}
                 </tbody>
-
               </table>
             </div>
           )}
@@ -267,7 +280,6 @@ export function AdminAlbumsPage() {
           onSave={handleUpdateAlbum}
         />
       )}
-
     </div>
   );
 }

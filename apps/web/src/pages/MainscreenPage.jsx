@@ -1,5 +1,4 @@
-// apps/web/src/pages/MainscreenPage.jsx
-
+// src/pages/MainscreenPage.jsx
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchAlbums } from "../api/albums";
@@ -11,36 +10,43 @@ export function MainscreenPage() {
   const [loadingAlbums, setLoadingAlbums] = useState(true);
   const [errorAlbums, setErrorAlbums] = useState(null);
 
-  const nombreUsuario = "Juanma"; // Luego vendrá del backend
+  const nombreUsuario = "Juanma";
 
   useEffect(() => {
     async function load() {
       try {
         setLoadingAlbums(true);
 
-        // 1️⃣ Obtener lista de álbumes
         const data = await fetchAlbums();
 
-        // 2️⃣ Obtener miniaturas como en ExploreAlbumsPage
-        const enrichedAlbums = await Promise.all(
-          data.map(async (album) => {
+        // ✅ MOSTRAR SOLO ALBUMES PUBLICADOS Y VISIBLES
+        const visibles = data.filter(
+          (a) => a.estado === "Publicado" && a.visibilidad === "Público"
+        );
+
+        // Obtener miniaturas reales
+        const enriched = await Promise.all(
+          visibles.map(async (album) => {
             try {
               const res = await fetch(
                 `http://localhost:4000/api/imagenes/album/${album.idAlbum}`
               );
+
               const imgs = await res.json();
+              const imagenes = imgs.ok ? imgs.imagenes : imgs;
 
               return {
                 ...album,
-                img_portada: imgs[0]?.rutaMiniatura || null,
+                img_portada: imagenes[0]?.rutaMiniatura || null,
               };
-            } catch {
+            } catch (err) {
+              console.error("Error cargando miniaturas:", err);
               return { ...album, img_portada: null };
             }
           })
         );
 
-        setAlbums(enrichedAlbums);
+        setAlbums(enriched);
       } catch (err) {
         console.error(err);
         setErrorAlbums("No se pudieron cargar los álbumes.");
@@ -53,159 +59,134 @@ export function MainscreenPage() {
   }, []);
 
   return (
-    <div className="p-4 p-md-5">
+    <div className="p-4">
 
-      {/* Saludo */}
-      <h2 className="fw-bold mb-2">Hola, {nombreUsuario}</h2>
-      <p className="text-muted mb-4">
-        Desde aquí vas a poder explorar álbumes, encontrar tus fotos mediante reconocimiento
-        facial y revisar tus compras.
+      <h2 className="fw-bold mb-1">Hola, {nombreUsuario}</h2>
+      <p className="text-muted">
+        Desde aquí vas a poder explorar álbumes, encontrar tus fotos mediante reconocimiento facial y revisar tus compras.
       </p>
 
-      {/* Resumen numérico */}
-      <div className="row g-3 mb-4">
-        
-        {/* Álbumes disponibles */}
-        <div className="col-12 col-md-4">
-          <div className="card shadow-sm border-0 h-100">
-            <div className="card-body">
-              <div className="text-muted small mb-1">Álbumes disponibles</div>
-              <div className="h4 mb-0">{albums.length}</div>
-            </div>
+      {/* ---------- ESTADISTICAS ---------- */}
+      <div className="row g-3 mt-3">
+        <div className="col-md-4">
+          <div className="border rounded p-3 shadow-sm bg-white">
+            <h5 className="fw-bold">Álbumes disponibles</h5>
+            <p className="display-6">{albums.length}</p>
           </div>
         </div>
 
-        {/* Fotos detectadas */}
-        <div className="col-12 col-md-4">
-          <div className="card shadow-sm border-0 h-100">
-            <div className="card-body">
-              <div className="text-muted small mb-1">Fotos detectadas para vos</div>
-              <div className="h4 mb-0">0</div>
-              <small className="text-muted">reconocimiento facial</small>
-            </div>
+        <div className="col-md-4">
+          <div className="border rounded p-3 shadow-sm bg-white">
+            <h5 className="fw-bold">Fotos detectadas para vos</h5>
+            <p className="display-6">0</p>
           </div>
         </div>
 
-        {/* Compras realizadas */}
-        <div className="col-12 col-md-4">
-          <div className="card shadow-sm border-0 h-100">
-            <div className="card-body">
-              <div className="text-muted small mb-1">Compras realizadas</div>
-              <div className="h4 mb-0">0</div>
-              <small className="text-muted">entrega automática por correo</small>
-            </div>
+        <div className="col-md-4">
+          <div className="border rounded p-3 shadow-sm bg-white">
+            <h5 className="fw-bold">Compras realizadas</h5>
+            <p className="display-6">0</p>
           </div>
         </div>
       </div>
 
-      {/* Accesos rápidos */}
-      <h5 className="fw-semibold mb-3">Accesos rápidos</h5>
-      <div className="row g-3 mb-4">
-        
-        {/* Explorar álbums */}
-        <div className="col-12 col-md-3">
-          <button
-            className="btn w-100 text-start border-0 shadow-sm py-3"
-            onClick={() => navigate("/app/albums")}
-          >
-            <div className="fw-semibold">📸 Explorar álbumes</div>
-            <small className="text-muted">Navegá por los eventos publicados.</small>
-          </button>
+      {/* ---------- ACCESOS RAPIDOS ---------- */}
+      <h4 className="fw-bold mt-5 mb-3">Accesos rápidos</h4>
+
+      <div className="row g-3">
+        <div className="col-md-3">
+          <Link to="/app/albums" className="text-decoration-none">
+            <div className="border rounded p-3 shadow-sm bg-white h-100">
+              <h6 className="fw-bold">📸 Explorar álbumes</h6>
+              <p className="text-muted mb-0">Navegá por los eventos publicados.</p>
+            </div>
+          </Link>
         </div>
 
-        {/* Mis fotos IA */}
-        <div className="col-12 col-md-3">
-          <button
-            className="btn w-100 text-start border-0 shadow-sm py-3"
-            onClick={() => navigate("/app/my-photos")}
-          >
-            <div className="fw-semibold">🙂 Encontrar mis fotos</div>
-            <small className="text-muted">Reconocimiento facial.</small>
-          </button>
+        <div className="col-md-3">
+          <Link to="/app/myphotos" className="text-decoration-none">
+            <div className="border rounded p-3 shadow-sm bg-white h-100">
+              <h6 className="fw-bold">🙂 Encontrar mis fotos</h6>
+              <p className="text-muted mb-0">Reconocimiento facial.</p>
+            </div>
+          </Link>
         </div>
 
-        {/* Mis compras */}
-        <div className="col-12 col-md-3">
-          <button
-            className="btn w-100 text-start border-0 shadow-sm py-3"
-            onClick={() => navigate("/app/purchases")}
-          >
-            <div className="fw-semibold">🧾 Mis compras</div>
-            <small className="text-muted">Historial de pedidos.</small>
-          </button>
+        <div className="col-md-3">
+          <Link to="/app/compras" className="text-decoration-none">
+            <div className="border rounded p-3 shadow-sm bg-white h-100">
+              <h6 className="fw-bold">📄 Mis compras</h6>
+              <p className="text-muted mb-0">Historial de pedidos.</p>
+            </div>
+          </Link>
         </div>
 
-        {/* Carrito */}
-        <div className="col-12 col-md-3">
-          <button
-            className="btn w-100 text-start border-0 shadow-sm py-3"
-            onClick={() => navigate("/app/cart")}
-          >
-            <div className="fw-semibold">🛒 Carrito</div>
-            <small className="text-muted">Revisá tu compra.</small>
-          </button>
+        <div className="col-md-3">
+          <Link to="/app/carrito" className="text-decoration-none">
+            <div className="border rounded p-3 shadow-sm bg-white h-100">
+              <h6 className="fw-bold">🛒 Carrito</h6>
+              <p className="text-muted mb-0">Revisá tu compra.</p>
+            </div>
+          </Link>
         </div>
       </div>
 
-      {/* Álbumes recientes */}
-      <div className="d-flex justify-content-between align-items-center mb-3">
-        <h5 className="fw-semibold mb-0">Álbumes recientes</h5>
+      {/* ---------- ALBUMES ---------- */}
+      <h4 className="fw-bold mt-5 mb-3">Álbumes recientes</h4>
 
-        <Link to="/app/albums" className="btn btn-link btn-sm text-decoration-none">
-          Ver todos los álbumes
-        </Link>
-      </div>
+      {loadingAlbums && <p className="text-muted">Cargando...</p>}
 
-      {loadingAlbums ? (
-        <div className="alert alert-secondary">Cargando álbumes...</div>
-      ) : errorAlbums ? (
+      {errorAlbums && (
         <div className="alert alert-danger">{errorAlbums}</div>
-      ) : albums.length === 0 ? (
-        <div className="alert alert-info">Aún no hay álbumes disponibles.</div>
-      ) : (
-        <div className="row g-3">
-          {albums.map((album) => (
-            <div key={album.idAlbum} className="col-12 col-md-4 col-lg-3">
-              <div className="card border-0 shadow-sm h-100">
-
-                {/* Miniatura real */}
-                <div
-                  style={{
-                    width: "100%",
-                    paddingTop: "60%",
-                    backgroundImage: album.img_portada
-                      ? `url(${album.img_portada})`
-                      : "linear-gradient(135deg, #0b6623, #2eb897)",
-                    backgroundSize: album.img_portada ? "cover" : "auto",
-                    backgroundPosition: "center",
-                    borderTopLeftRadius: "0.5rem",
-                    borderTopRightRadius: "0.5rem",
-                  }}
-                ></div>
-
-                <div className="card-body">
-                  <h6 className="fw-semibold mb-1">{album.nombreEvento}</h6>
-                  <small className="text-muted">
-                    {new Date(album.fechaEvento).toLocaleDateString("es-AR")} · {album.localizacion}
-                  </small>
-
-                  <button
-                    className="btn btn-outline-secondary btn-sm mt-2"
-                    onClick={() => navigate(`/app/album/${album.idAlbum}`)}
-                  >
-                    Ver álbum
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
       )}
 
-      {/* Últimas fotos */}
-      <h5 className="fw-semibold mt-4 mb-2">Mis últimas fotos</h5>
-      <div className="alert alert-secondary">
-        Próximamente vas a ver aquí las fotos detectadas mediante reconocimiento facial.
+      {!loadingAlbums && albums.length === 0 && (
+        <p className="text-muted">No hay álbumes disponibles.</p>
+      )}
+
+      <div className="row g-4">
+        {albums.map((album) => (
+          <div key={album.idAlbum} className="col-md-4">
+            <div className="card border-0 shadow-sm">
+
+              {album.img_portada ? (
+                <img
+                  src={album.img_portada}
+                  className="card-img-top"
+                  style={{ height: "180px", objectFit: "cover" }}
+                  alt=""
+                />
+              ) : (
+                <div
+                  style={{
+                    background: "#d9d9d9",
+                    height: "180px",
+                    borderRadius: "0.5rem 0.5rem 0 0",
+                  }}
+                />
+              )}
+
+              <div className="card-body">
+                <h5 className="card-title fw-semibold">
+                  {album.nombreEvento}
+                </h5>
+
+                <p className="text-muted mb-1">
+                  {new Date(album.fechaEvento).toLocaleDateString("es-AR")} ·{" "}
+                  {album.localizacion}
+                </p>
+
+                <button
+                  className="btn btn-success w-100 mt-2"
+                  onClick={() => navigate(`/app/albums/${album.idAlbum}`)}
+                >
+                  Ver álbum
+                </button>
+              </div>
+
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

@@ -20,7 +20,9 @@ export function AdminSidebar({ user }) {
 
   const displayName = user?.nombre || user?.correo || "Administrador";
   const email = user?.correo || "";
-  const initial = (user?.nombre || user?.correo || "A").charAt(0).toUpperCase();
+  const initial = (user?.nombre || user?.correo || "A")
+    .charAt(0)
+    .toUpperCase();
   const avatarUrl = user?.foto;
 
   return (
@@ -61,6 +63,14 @@ export function AdminSidebar({ user }) {
               className={`nav-link ${isActive("/admin/albums/nuevo")}`}
             >
               ➕ Crear álbum
+            </Link>
+
+            {/* 🔧 NUEVO: BOTÓN CONFIGURACIÓN */}
+            <Link
+              to="/admin/config"
+              className={`nav-link ${isActive("/admin/config")}`}
+            >
+              ⚙️ Configuración
             </Link>
 
             <Link
@@ -141,17 +151,14 @@ export function AdminSidebar({ user }) {
             <div className="d-flex flex-column">
               <span className="small fw-semibold">{displayName}</span>
               {email && (
-                <span
-                  className="small text-muted"
-                  style={{ fontSize: "0.75rem" }}
-                >
+                <span className="small text-muted" style={{ fontSize: "0.75rem" }}>
                   {email}
                 </span>
               )}
             </div>
           </div>
 
-          {/* BOTÓN LOGOUT – SOLO ICONO SIN BORDE */}
+          {/* BOTÓN LOGOUT */}
           <button
             className="p-0 bg-transparent border-0 text-danger"
             onClick={() => setShowConfirm(true)}
@@ -179,9 +186,7 @@ export function AdminSidebar({ user }) {
                 ></button>
               </div>
 
-              <div className="modal-body">
-                ¿Desea cerrar sesión?
-              </div>
+              <div className="modal-body">¿Desea cerrar sesión?</div>
 
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowConfirm(false)}>

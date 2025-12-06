@@ -1,15 +1,52 @@
+// src/pages/AlbumGalleryPage.jsx
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { PageHeader } from "../components/PageHeader";
-import { UserLayout } from "../layouts/UserLayout";
+import toast, { Toaster } from "react-hot-toast";
+import { addImageToCart } from "../api/cart";
 
 export function AlbumGalleryPage() {
   const { idAlbum } = useParams();
+
+  const [album, setAlbum] = useState(null);      // ⬅ para controlar estado del álbum
   const [imagenes, setImagenes] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const [visorIndex, setVisorIndex] = useState(null);
+  const [buyingId, setBuyingId] = useState(null);
 
+  // ------------------------------------------------
+  // 1️⃣ Cargar datos del álbum (solo para ver si está archivado)
+  // ------------------------------------------------
+  useEffect(() => {
+    async function loadAlbum() {
+      try {
+        const res = await fetch(`http://localhost:4000/api/albums/${idAlbum}`);
+        const data = await res.json();
+
+        if (!data.ok || !data.album) {
+          setAlbum("no-existe");
+          return;
+        }
+
+        if (data.album.estado === "archivado") {
+          setAlbum("archivado");
+          return;
+        }
+
+        setAlbum(data.album);
+      } catch (err) {
+        console.error("Error cargando álbum:", err);
+        setAlbum("error");
+      }
+    }
+
+    loadAlbum();
+  }, [idAlbum]);
+
+  // ------------------------------------------------
+  // 2️⃣ Cargar imágenes del álbum
+  // ------------------------------------------------
   useEffect(() => {
     async function loadImages() {
       try {
@@ -17,9 +54,17 @@ export function AlbumGalleryPage() {
           `http://localhost:4000/api/imagenes/album/${idAlbum}`
         );
         const data = await res.json();
-        setImagenes(data || []);
+
+        if (data && data.ok && Array.isArray(data.imagenes)) {
+          setImagenes(data.imagenes);
+        } else if (Array.isArray(data)) {
+          setImagenes(data);
+        } else {
+          setImagenes([]);
+        }
       } catch (err) {
         console.error("Error cargando imágenes:", err);
+        setImagenes([]);
       } finally {
         setLoading(false);
       }
@@ -28,6 +73,29 @@ export function AlbumGalleryPage() {
     loadImages();
   }, [idAlbum]);
 
+  // ------------------------------------------------
+  // 3️⃣ Si el álbum está archivado o no existe → mostrar mensaje
+  // ------------------------------------------------
+  if (album === "archivado") {
+    return (
+      <div className="container py-5 text-center">
+        <h3>⛔ Este álbum ya no está disponible</h3>
+        <p className="text-muted">Ha sido archivado por el administrador.</p>
+      </div>
+    );
+  }
+
+  if (album === "no-existe") {
+    return (
+      <div className="container py-5 text-center">
+        <h3>❌ Álbum no encontrado</h3>
+      </div>
+    );
+  }
+
+  // ------------------------------------------------
+  // 4️⃣ Controles del visor y compra
+  // ------------------------------------------------
   const openVisor = (index) => {
     setVisorIndex(index);
     document.body.style.overflow = "hidden";
@@ -49,12 +117,29 @@ export function AlbumGalleryPage() {
     return url.startsWith("http") ? url : url.replace(/^\//, "");
   };
 
+  async function comprarFoto(idImagen) {
+    try {
+      setBuyingId(idImagen);
+      await addImageToCart(idImagen);
+      toast.success("Foto agregada al carrito 🛒");
+    } catch (err) {
+      console.error(err);
+      toast.error("Error al agregar al carrito");
+    } finally {
+      setBuyingId(null);
+    }
+  }
+
+  // ------------------------------------------------
+  // 5️⃣ Render de la galería
+  // ------------------------------------------------
   return (
-    <UserLayout>
+    <>
+      <Toaster />
+
       <PageHeader titulo={`Galería del Álbum #${idAlbum}`} />
 
       <div className="container py-3">
-
         {loading && (
           <div className="row g-3">
             {Array.from({ length: 20 }).map((_, i) => (
@@ -82,7 +167,6 @@ export function AlbumGalleryPage() {
             <div key={img.idImagen} className="col-6 col-md-4 col-lg-2">
               <img
                 src={safeUrl(img.rutaMiniatura)}
-                alt=""
                 className="img-fluid rounded shadow-sm gallery-thumb"
                 onClick={() => openVisor(index)}
                 style={{
@@ -91,13 +175,21 @@ export function AlbumGalleryPage() {
                   aspectRatio: "1 / 1",
                   objectFit: "cover",
                 }}
+                alt=""
               />
+
+              <button
+                className="btn btn-primary w-100 mt-2"
+                onClick={() => comprarFoto(img.idImagen)}
+                disabled={buyingId === img.idImagen}
+              >
+                {buyingId === img.idImagen ? "Agregando..." : "Comprar foto"}
+              </button>
             </div>
           ))}
         </div>
       </div>
 
-      {/* VISOR */}
       {visorIndex !== null && (
         <div className="visor-overlay">
           <span className="visor-close" onClick={closeVisor}>
@@ -126,8 +218,7 @@ export function AlbumGalleryPage() {
         </div>
       )}
 
-      <style>
-        {`
+      <style>{`
         .gallery-thumb {
           transition: transform 0.25s ease, box-shadow 0.25s ease;
         }
@@ -183,8 +274,7 @@ export function AlbumGalleryPage() {
 
         .visor-arrow.left { left: 25px; }
         .visor-arrow.right { right: 25px; }
-      `}
-      </style>
-    </UserLayout>
+      `}</style>
+    </>
   );
 }

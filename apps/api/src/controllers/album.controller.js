@@ -9,10 +9,12 @@ export const albumController = {
   async getAll(req, res) {
     try {
       const albums = await albumService.listAlbums();
-      res.json(albums);
+      return res.json(albums);
     } catch (err) {
       console.error("Error en getAll:", err);
-      res.status(500).json({ msg: "Error al obtener álbumes" });
+      return res
+        .status(500)
+        .json({ ok: false, error: "Error al obtener álbumes" });
     }
   },
 
@@ -20,10 +22,19 @@ export const albumController = {
     try {
       const { id } = req.params;
       const album = await albumService.getAlbumById(id);
-      res.json(album);
+
+      if (!album) {
+        return res
+          .status(404)
+          .json({ ok: false, error: "Álbum no encontrado" });
+      }
+
+      return res.json({ ok: true, album });
     } catch (err) {
       console.error("Error en getById:", err);
-      res.status(500).json({ msg: "Error al obtener el álbum" });
+      return res
+        .status(500)
+        .json({ ok: false, error: "Error al obtener álbum" });
     }
   },
 
@@ -31,10 +42,12 @@ export const albumController = {
     try {
       const albumData = req.body;
       const nuevoAlbum = await albumService.createAlbum(albumData);
-      res.status(201).json(nuevoAlbum);
+      return res.status(201).json({ ok: true, ...nuevoAlbum });
     } catch (err) {
       console.error("Error en create:", err);
-      res.status(500).json({ msg: "Error al crear el álbum" });
+      return res
+        .status(400)
+        .json({ ok: false, error: err.message || "Error al crear el álbum" });
     }
   },
 
@@ -42,10 +55,15 @@ export const albumController = {
     try {
       const { id } = req.params;
       await albumService.eliminarAlbum(id);
-      res.json({ ok: true, message: "Álbum eliminado correctamente" });
+      return res.json({
+        ok: true,
+        message: "Álbum archivado correctamente",
+      });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, error: "Error al eliminar álbum" });
+      console.error("Error en eliminar:", err);
+      return res
+        .status(500)
+        .json({ ok: false, error: "Error al archivar álbum" });
     }
   },
 
@@ -53,18 +71,26 @@ export const albumController = {
     try {
       const { id } = req.params;
       const data = req.body;
+
       await albumService.actualizarAlbum(id, data);
-      res.json({ ok: true, message: "Álbum actualizado correctamente" });
+
+      return res.json({
+        ok: true,
+        message: "Álbum actualizado correctamente",
+      });
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ ok: false, error: "Error al actualizar álbum" });
+      console.error("Error en actualizar:", err);
+      return res.status(400).json({
+        ok: false,
+        error: err.message || "Error al actualizar álbum",
+      });
     }
   },
 
-  // ⭐⭐⭐ NUEVO ENDPOINT — Crear álbum con imágenes en un solo flujo
+  // ⭐⭐⭐ Crear álbum + imágenes
   async createComplete(req, res) {
     try {
-      // 1) Metadata en JSON
+      // 1) Metadata JSON
       const metadata = JSON.parse(req.body.metadata);
 
       const {
@@ -76,7 +102,7 @@ export const albumController = {
         precioAlbum,
         estado,
         visibilidad,
-        tags
+        tags,
       } = metadata;
 
       // 2) Crear álbum en BD
@@ -94,45 +120,39 @@ export const albumController = {
           precioAlbum,
           estado,
           visibilidad,
-          tags
+          tags,
         ]
       );
 
       const idAlbum = result.insertId;
 
-      // 3) Generar código interno
-      const codigoInterno = `ALB-${String(idAlbum).padStart(5, "0")}`;
+      // 3) Código interno
+      const codigoInterno = `ALB-${idAlbum.toString().padStart(4, "0")}`;
       await db.execute(
-        `UPDATE album SET codigoInterno = ? WHERE idAlbum = ?`,
+        "UPDATE album SET codigoInterno = ? WHERE idAlbum = ?",
         [codigoInterno, idAlbum]
       );
 
-      // 4) Procesar imágenes usando la lógica original
+      // 4) Procesar imágenes
       const files = req.files || [];
 
       for (const file of files) {
-        // Usa tu servicio que ya hace:
-        // - upload a Cloudinary
-        // - genera miniatura
-        // - genera rutaOptimizado
-        // - inserta en tabla imagenes
-        await imageService.processAndSaveImage(idAlbum, file);
+        await imageService.processSingleImage(file, idAlbum);
       }
 
-      res.json({
+      return res.json({
         success: true,
         idAlbum,
-        codigoInterno
+        codigoInterno,
       });
 
     } catch (err) {
       console.error("Error en createComplete:", err);
-      res.status(500).json({
+      return res.status(500).json({
         success: false,
         message: "Error al crear álbum completo",
-        error: err.message
+        error: err.message,
       });
     }
-  }
-
+  },
 };

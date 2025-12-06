@@ -1,30 +1,42 @@
 // src/routes/images.routes.js
 import { Router } from "express";
-import { imageController } from "../controllers/image.controller.js";
-import { uploadSingleImage } from "../middlewares/upload.middleware.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { requireAdmin } from "../middlewares/roles.middleware.js";
+import {
+  uploadSingleImage,
+  uploadMultipleImages,
+} from "../middlewares/upload.middleware.js";
+import { imageController } from "../controllers/image.controller.js";
 
 const router = Router();
 
-// Subir imagen
+// ✔ Obtener imágenes de un álbum
+router.get("/album/:idAlbum", imageController.getByAlbum);
+
+// ✔ Subir imágenes para un nuevo álbum (CREACIÓN de álbum)
 router.post(
   "/upload",
   authMiddleware,
   requireAdmin,
-  uploadSingleImage,
-  imageController.upload
+  uploadMultipleImages,
+  imageController.uploadImages
 );
 
-// Obtener imágenes por álbum
-router.get("/album/:idAlbum", imageController.getByAlbum);
+// ✔ Subir UNA imagen (si en algún lado lo usás)
+router.post(
+  "/upload-one",
+  authMiddleware,
+  requireAdmin,
+  uploadSingleImage,
+  imageController.uploadImage
+);
 
-// 💥 Eliminar imagen
+// ✔ Eliminar una imagen específica
 router.delete(
   "/:idImagen",
   authMiddleware,
   requireAdmin,
-  imageController.delete
+  imageController.deleteImage
 );
 
 export default router;

@@ -18,5 +18,8 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react": "^7.37.0",
     "prettier": "^3.3.3"
+  },
+  "dependencies": {
+    "react-hot-toast": "^2.6.0"
   }
 }

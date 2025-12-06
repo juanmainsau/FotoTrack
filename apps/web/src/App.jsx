@@ -13,12 +13,11 @@ import LandingPage from "./pages/LandingPage";
 import { MainscreenPage } from "./pages/MainscreenPage";
 import { ExploreAlbumsPage } from "./pages/ExploreAlbumsPage";
 import { AlbumGalleryPage } from "./pages/AlbumGalleryPage";
-
-// NUEVAS PANTALLAS DEL USUARIO
 import MyPhotosPage from "./pages/MyPhotosPage.jsx";
-import PurchasesPage from "./pages/PurchasesPage.jsx";
-import CartPage from "./pages/CartPage.jsx";
+import CheckoutPage from "./pages/CheckoutPage.jsx";
+import { CartPage } from "./pages/CartPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
+import MisComprasPage from "./pages/MisComprasPage.jsx";
 
 // PÁGINAS DE ADMIN
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
@@ -32,85 +31,33 @@ import AdminAuditPage from "./pages/AdminAuditPage.jsx";
 export default function App() {
   return (
     <Routes>
-
-      {/* ===================================== */}
-      {/*               PÚBLICO                 */}
-      {/* ===================================== */}
       <Route path="/" element={<LandingPage />} />
 
-      {/* ===================================== */}
-      {/*           ÁREA DE USUARIO             */}
-      {/* ===================================== */}
+      {/* ======================== */}
+      {/*      ÁREA DE USUARIO     */}
+      {/* ======================== */}
+      <Route path="/app" element={<UserLayout />}>
+        <Route path="mainscreen" element={<MainscreenPage />} />
 
-      <Route
-        path="/app/mainscreen"
-        element={
-          <UserLayout>
-            <MainscreenPage />
-          </UserLayout>
-        }
-      />
+        {/* EXPLORAR Y VER ALBÚMENES */}
+        <Route path="albums" element={<ExploreAlbumsPage />} />
+        <Route path="albums/:idAlbum" element={<AlbumGalleryPage />} />
 
-      <Route
-        path="/app/albums"
-        element={
-          <UserLayout>
-            <ExploreAlbumsPage />
-          </UserLayout>
-        }
-      />
+        {/* RECONOCIMIENTO/CARPETA PERSONAL */}
+        <Route path="my-photos" element={<MyPhotosPage />} />
 
-      <Route
-        path="/app/album/:idAlbum"
-        element={
-          <UserLayout>
-            <AlbumGalleryPage />
-          </UserLayout>
-        }
-      />
+        {/* CHECKOUT SOLO DESDE CARRITO */}
+        <Route path="cart" element={<CartPage />} />
+        <Route path="checkout" element={<CheckoutPage />} />
 
-      {/* NUEVAS RUTAS DE USUARIO */}
+        {/* PERFIL + MIS COMPRAS */}
+        <Route path="perfil" element={<UserProfilePage />} />
+        <Route path="mis-compras" element={<MisComprasPage />} />
+      </Route>
 
-      <Route
-        path="/app/my-photos"
-        element={
-          <UserLayout>
-            <MyPhotosPage />
-          </UserLayout>
-        }
-      />
-
-      <Route
-        path="/app/purchases"
-        element={
-          <UserLayout>
-            <PurchasesPage />
-          </UserLayout>
-        }
-      />
-
-      <Route
-        path="/app/cart"
-        element={
-          <UserLayout>
-            <CartPage />
-          </UserLayout>
-        }
-      />
-
-      <Route
-        path="/app/profile"
-        element={
-          <UserLayout>
-            <UserProfilePage />
-          </UserLayout>
-        }
-      />
-
-      {/* ===================================== */}
-      {/*                 ADMIN                 */}
-      {/* ===================================== */}
-
+      {/* ======================== */}
+      {/*          ADMIN           */}
+      {/* ======================== */}
       <Route
         path="/admin"
         element={
@@ -187,7 +134,6 @@ export default function App() {
           </AdminRoute>
         }
       />
-
     </Routes>
   );
 }

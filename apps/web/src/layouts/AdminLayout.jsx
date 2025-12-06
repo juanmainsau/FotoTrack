@@ -15,9 +15,7 @@ export function AdminLayout({ children }) {
         if (!token) return navigate("/");
 
         const res = await axios.get("http://localhost:4000/api/auth/me", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
 
         if (!res.data?.ok) return navigate("/");
@@ -30,7 +28,6 @@ export function AdminLayout({ children }) {
       } catch (err) {
         console.error("Error cargando usuario (ADMIN):", err);
         localStorage.removeItem("fototrack-token");
-        localStorage.removeItem("fototrack-user");
         return navigate("/");
       }
     }
@@ -43,10 +40,17 @@ export function AdminLayout({ children }) {
       <AdminSidebar user={user} />
 
       <main
-        className="flex-grow-1"
-        style={{ padding: "24px", marginLeft: "260px" }}
+        className="flex-grow-1 d-flex justify-content-center"
+        style={{
+          marginLeft: "260px",
+          padding: "32px",
+          backgroundColor: "#ffffff",
+        }}
       >
-        {children}
+        {/* Contenedor centrado y con max-width */}
+        <div style={{ width: "100%", maxWidth: "1100px" }}>
+          {children}
+        </div>
       </main>
     </div>
   );

@@ -36,25 +36,37 @@ export function UserSidebar({ user }) {
           backgroundColor: "#f8f9fa",
         }}
       >
-        {/* HEADER */}
         <div className="p-4 border-bottom">
           <h4 className="fw-bold mb-0">FotoTrack</h4>
           <small className="text-muted">Panel del usuario</small>
         </div>
 
-        {/* NAV */}
         <div className="d-flex flex-column flex-grow-1 overflow-auto">
           <nav className="nav flex-column px-3 py-3 gap-1 small">
-            <Link to="/app/mainscreen" className={`nav-link ${isActive("/app/mainscreen")}`}>🏠 Inicio</Link>
-            <Link to="/app/albums" className={`nav-link ${isActive("/app/albums")}`}>📸 Explorar álbumes</Link>
-            <Link to="/app/my-photos" className={`nav-link ${isActive("/app/my-photos")}`}>🙂 Mis fotos</Link>
-            <Link to="/app/purchases" className={`nav-link ${isActive("/app/purchases")}`}>🧾 Mis compras</Link>
-            <Link to="/app/cart" className={`nav-link ${isActive("/app/cart")}`}>🛒 Carrito</Link>
-            <Link to="/app/profile" className={`nav-link ${isActive("/app/profile")}`}>⚙️ Mi perfil</Link>
+            <Link to="/app/mainscreen" className={`nav-link ${isActive("/app/mainscreen")}`}>
+              🏠 Inicio
+            </Link>
+
+            <Link to="/app/albums" className={`nav-link ${isActive("/app/albums")}`}>
+              📸 Explorar álbumes
+            </Link>
+
+            <Link to="/app/my-photos" className={`nav-link ${isActive("/app/my-photos")}`}>
+              🙂 Mis fotos
+            </Link>
+
+            {/* ❌ QUITADO: /app/mis-compras */}
+
+            <Link to="/app/cart" className={`nav-link ${isActive("/app/cart")}`}>
+              🛒 Carrito
+            </Link>
+
+            <Link to="/app/perfil" className={`nav-link ${isActive("/app/perfil")}`}>
+              ⚙️ Mi perfil
+            </Link>
           </nav>
         </div>
 
-        {/* BLOQUE USUARIO ABAJO */}
         <div className="border-top px-3 py-3 d-flex align-items-center justify-content-between position-relative">
           <div className="d-flex align-items-center gap-2">
             {avatarUrl ? (
@@ -91,7 +103,6 @@ export function UserSidebar({ user }) {
             </div>
           </div>
 
-          {/* BOTÓN LOGOUT – SOLO ICONO ROJO */}
           <button
             className="p-0 bg-transparent border-0 text-danger"
             style={{ fontSize: "1.2rem", cursor: "pointer" }}
@@ -103,7 +114,6 @@ export function UserSidebar({ user }) {
         </div>
       </aside>
 
-      {/* MODAL CONFIRMACIÓN */}
       {showConfirm && (
         <div
           className="modal fade show"
@@ -116,9 +126,7 @@ export function UserSidebar({ user }) {
                 <button className="btn-close" onClick={() => setShowConfirm(false)}></button>
               </div>
 
-              <div className="modal-body">
-                ¿Desea cerrar sesión?
-              </div>
+              <div className="modal-body">¿Desea cerrar sesión?</div>
 
               <div className="modal-footer">
                 <button className="btn btn-secondary" onClick={() => setShowConfirm(false)}>

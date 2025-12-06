@@ -9,11 +9,13 @@ import { fileURLToPath } from "url";
 
 // Rutas
 import authRoutes from "./routes/auth.routes.js";
-import imageRoutes from "./routes/images.routes.js";
+import imageRoutes from "./routes/images.routes.js";   // ✔ único router correcto
 import albumRoutes from "./routes/album.routes.js";
 import configRoutes from "./routes/config.routes.js";
+import cartRoutes from "./routes/cart.routes.js";
+import purchaseRoutes from "./routes/purchase.routes.js";
 
-// 🔐 Middleware y controller para /api/auth/me
+// Middlewares / Controllers
 import { authMiddleware } from "./middlewares/auth.middleware.js";
 import { authController } from "./controllers/auth.controller.js";
 
@@ -54,13 +56,28 @@ app.use(morgan("dev"));
 // =====================================================
 // ⭐ RUTAS API
 // =====================================================
+
+// 🔐 Autenticación
 app.use("/api/auth", authRoutes);
-app.use("/api/imagenes", imageRoutes);
+
+// 📸 Imágenes
+app.use("/api/imagenes", imageRoutes);  // ✔ único router de imágenes
+
+// 📁 Álbumes
 app.use("/api/albums", albumRoutes);
+
+// ⚙ Configuración admin
 app.use("/api/config", configRoutes);
 
-// 🔐 Ruta explícita para obtener el usuario autenticado
-// GET /api/auth/me
+// 🛒 Carrito
+app.use("/api/carrito", cartRoutes);
+
+// 💳 Compras
+app.use("/api/compras", purchaseRoutes);
+
+// =====================================================
+// 🔐 Obtener usuario autenticado
+// =====================================================
 app.get("/api/auth/me", authMiddleware, authController.me);
 
 // =====================================================
@@ -84,8 +101,5 @@ app.get("/api/health", (_req, res) => {
 // =====================================================
 app.listen(PORT, () => {
   console.log(`✔ API running on http://localhost:${PORT}`);
-  console.log(
-    "✔ Cloudinary conectado como:",
-    process.env.CLOUDINARY_CLOUD_NAME
-  );
+  console.log("✔ Cloudinary conectado como:", process.env.CLOUDINARY_CLOUD_NAME);
 });

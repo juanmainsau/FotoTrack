@@ -1,54 +1,77 @@
-// apps/api/src/controllers/image.controller.js
+// src/controllers/image.controller.js
 import { imageService } from "../services/image.service.js";
 
 export const imageController = {
-  async upload(req, res) {
-    try {
-      const { idAlbum } = req.body;
-
-      if (!req.file) {
-        return res.status(400).json({ msg: "No se envió ninguna imagen." });
-      }
-
-      const result = await imageService.processAndSaveImage(idAlbum, req.file);
-
-      return res.status(201).json(result);
-
-    } catch (err) {
-      console.error("Error al subir imagen:", err);
-      return res.status(500).json({ msg: "Error al subir imagen" });
-    }
-  },
-
+  // Obtener imágenes por álbum
   async getByAlbum(req, res) {
     try {
       const { idAlbum } = req.params;
       const imagenes = await imageService.getImagesByAlbum(idAlbum);
-      return res.json(imagenes);
+      return res.json({ ok: true, imagenes });
     } catch (err) {
-      console.error(err);
-      return res.status(500).json({ msg: "Error al obtener imágenes" });
+      console.error("Error en getByAlbum:", err);
+      return res.status(500).json({ ok: false, error: err.message });
     }
   },
 
-  // NUEVO: eliminar imagen
-  async delete(req, res) {
+  // Subir UNA imagen (no es lo que más usamos, pero lo dejamos estable)
+  async uploadImage(req, res) {
+    try {
+      const file = req.file;
+
+      if (!file) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "No se envió ninguna imagen." });
+      }
+
+      const saved = await imageService.processAndSaveSingleImage(file);
+
+      return res.json({ ok: true, imagen: saved });
+    } catch (err) {
+      console.error("Error en uploadImage:", err);
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+  },
+
+  // Subir MÚLTIPLES imágenes (creación de álbum)
+  async uploadImages(req, res) {
+    try {
+      const files = req.files;
+      const { idAlbum } = req.body;
+
+      if (!files || files.length === 0) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "No se enviaron imágenes." });
+      }
+
+      if (!idAlbum) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "Falta idAlbum en el cuerpo." });
+      }
+
+      const imagenes = await imageService.processAndSaveImages(files, idAlbum);
+
+      return res.json({ ok: true, imagenes });
+    } catch (err) {
+      console.error("Error en uploadImages:", err);
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+  },
+
+  // Eliminar una imagen
+  async deleteImage(req, res) {
     try {
       const { idImagen } = req.params;
 
       await imageService.deleteImage(idImagen);
 
-      return res.json({
-        ok: true,
-        message: "Imagen eliminada correctamente",
-      });
-
+      return res.json({ ok: true });
     } catch (err) {
-      console.error("Error al eliminar imagen:", err);
-      return res.status(500).json({
-        ok: false,
-        error: "No se pudo eliminar la imagen",
-      });
+      console.error("Error en deleteImage:", err);
+      return res.status(500).json({ ok: false, error: err.message });
     }
   },
 };
