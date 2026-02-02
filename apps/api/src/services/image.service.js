@@ -1,10 +1,11 @@
 // src/services/image.service.js
 import fs from "fs";
-import sharp from "sharp";
 import cloudinary from "../config/cloudinary.js";
 import { imageRepository } from "../repositories/image.repository.js";
+import { configRepository } from "../repositories/config.repository.js";
 
 export const imageService = {
+  
   // ---------------------------------------------------------
   // Obtener imágenes por álbum
   // ---------------------------------------------------------
@@ -37,106 +38,92 @@ export const imageService = {
   },
 
   // ---------------------------------------------------------
-  // ⭐ FUNCIÓN CENTRAL — Procesar 1 imagen
-  // (miniatura, optimizada y original)
+  // ⭐ FUNCIÓN CENTRAL — Procesar 1 imagen (Versión Cloudinary)
   // ---------------------------------------------------------
   async processSingleImage(file, idAlbum = null) {
     // Validaciones críticas
-    if (!file) {
-      console.error("❌ imageService: file es null o undefined:", file);
+    if (!file || !file.path) {
+      console.error("❌ imageService: archivo inválido", file);
       throw new Error("Archivo de imagen no válido.");
     }
-
-    if (!file.path) {
-      console.error("❌ imageService: file.path no existe:", file);
-      throw new Error("Ruta del archivo temporal no encontrada.");
-    }
-
+    
     const tempPath = file.path;
 
-    // ======================================================
-    // 1) Leer archivo y generar buffer de forma segura
-    // ======================================================
-    let originalBuffer;
-    try {
-      originalBuffer = await sharp(tempPath).toFormat("jpeg").jpeg({ quality: 90 }).toBuffer();
-    } catch (err) {
-      console.error("❌ Error leyendo imagen con Sharp:", err);
-      throw new Error("La imagen está corrupta o no es un formato válido.");
+    // 1. Obtener configuración de la BD (para saber si hay marca de agua activa)
+    const config = await configRepository.getConfig();
+    
+    // Cloudinary necesita que los "/" del ID de la imagen overlay sean ":"
+    let watermarkId = null;
+    if (config && config.watermark_enabled && config.watermark_public_id) {
+        watermarkId = config.watermark_public_id.replace(/\//g, ":");
     }
 
-    // ======================================================
-    // 2) Subir ORIGINAL a Cloudinary
-    // ======================================================
-    const originalUpload = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: `fototrack/albums/${idAlbum || "temp"}`,
-          resource_type: "image",
-        },
-        (err, result) => (err ? reject(err) : resolve(result))
-      );
-      stream.end(originalBuffer);
-    });
-
-    // ======================================================
-    // 3) Miniatura
-    // ======================================================
-    const thumbBuffer = await sharp(originalBuffer)
-      .resize(350, 350, { fit: "cover" })
-      .jpeg({ quality: 80 })
-      .toBuffer();
-
-    const thumbUpload = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: `fototrack/albums/${idAlbum || "temp"}/thumb`,
-          resource_type: "image",
-        },
-        (err, result) => (err ? reject(err) : resolve(result))
-      );
-      stream.end(thumbBuffer);
-    });
-
-    // ======================================================
-    // 4) Imagen optimizada
-    // ======================================================
-    const optimizedBuffer = await sharp(originalBuffer)
-      .jpeg({ quality: 85 })
-      .toBuffer();
-
-    const optimizedUpload = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: `fototrack/albums/${idAlbum || "temp"}/optimized`,
-          resource_type: "image",
-        },
-        (err, result) => (err ? reject(err) : resolve(result))
-      );
-      stream.end(optimizedBuffer);
-    });
-
-    // ======================================================
-    // 5) Guardar en BD
-    // ======================================================
-    const saved = await imageRepository.create({
-      idAlbum,
-      rutaOriginal: originalUpload.secure_url,
-      rutaMiniatura: thumbUpload.secure_url,
-      rutaOptimizado: optimizedUpload.secure_url,
-      public_id: originalUpload.public_id,
-    });
-
-    // ======================================================
-    // 6) Borrar archivo temporal
-    // ======================================================
     try {
-      fs.unlink(tempPath, () => {});
-    } catch (err) {
-      console.warn("⚠ No se pudo borrar archivo temporal:", tempPath);
-    }
+      // ======================================================
+      // A. SUBIR ORIGINAL (Calidad máxima)
+      // ======================================================
+      const originalUpload = await cloudinary.uploader.upload(tempPath, {
+        folder: `fototrack/albums/${idAlbum || "temp"}`,
+        resource_type: "image",
+      });
 
-    return saved;
+      // ======================================================
+      // B. SUBIR MINIATURA (Thumb 350x350)
+      // ======================================================
+      // Dejamos que Cloudinary haga el resize aquí
+      const thumbUpload = await cloudinary.uploader.upload(tempPath, {
+        folder: `fototrack/albums/${idAlbum || "temp"}/thumb`,
+        resource_type: "image",
+        transformation: [{ width: 350, height: 350, crop: "fill", quality: "auto" }]
+      });
+
+      // ======================================================
+      // C. SUBIR OPTIMIZADA CON MARCA DE AGUA
+      // ======================================================
+      const transformationOptions = [
+        { width: 1200, crop: "limit" }, // No más de 1200px de ancho
+        { quality: 80 }                 // Calidad web
+      ];
+
+      // Si hay marca de agua configurada, la agregamos como capa (overlay)
+      if (watermarkId) {
+        transformationOptions.push({
+          overlay: watermarkId,
+          gravity: config.watermark_position || "southeast", // Posición
+          width: "0.3",              // 30% del ancho de la foto (relativo)
+          flags: "relative",         // Hace que el width sea relativo
+          opacity: config.watermark_opacity || 80
+        });
+      }
+
+      const optimizedUpload = await cloudinary.uploader.upload(tempPath, {
+        folder: `fototrack/albums/${idAlbum || "temp"}/optimized`,
+        resource_type: "image",
+        transformation: transformationOptions
+      });
+
+      // ======================================================
+      // D. GUARDAR EN BASE DE DATOS
+      // ======================================================
+      const saved = await imageRepository.create({
+        idAlbum,
+        rutaOriginal: originalUpload.secure_url,
+        rutaMiniatura: thumbUpload.secure_url,
+        rutaOptimizado: optimizedUpload.secure_url, // 👈 ¡Esta ya tiene la marca incrustada!
+        public_id: originalUpload.public_id,
+      });
+
+      return saved;
+
+    } catch (error) {
+      console.error("❌ Error en Cloudinary upload:", error);
+      throw error;
+    } finally {
+      // Limpiar archivo temporal del servidor siempre
+      try { fs.unlinkSync(tempPath); } catch (e) {
+        console.warn("⚠ No se pudo borrar archivo temporal:", tempPath);
+      }
+    }
   },
 
   // ---------------------------------------------------------
@@ -147,9 +134,13 @@ export const imageService = {
 
     if (!img) throw new Error("Imagen no encontrada");
 
+    // Intentar borrar de Cloudinary
     try {
       if (img.public_id) {
         await cloudinary.uploader.destroy(img.public_id);
+        // Nota: Idealmente deberíamos borrar también las derivadas (thumb/optimized)
+        // pero Cloudinary a veces lo maneja automático si están vinculadas,
+        // o requeriría guardar los public_id de las 3 versiones.
       }
     } catch (err) {
       console.warn("⚠ No se pudo eliminar en Cloudinary:", err.message);

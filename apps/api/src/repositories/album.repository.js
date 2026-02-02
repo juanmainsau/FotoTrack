@@ -56,7 +56,7 @@ export const albumRepository = {
         MAX(i.rutaMiniatura)     AS miniatura
       FROM album a
       LEFT JOIN imagenes i ON i.idAlbum = a.idAlbum
-      WHERE a.estado = 'activo'
+      WHERE a.estado = 'publicado'
         AND a.visibilidad = 'Público'
       GROUP BY a.idAlbum
       ORDER BY a.fechaEvento DESC, a.idAlbum DESC
@@ -130,6 +130,10 @@ export const albumRepository = {
     return rows[0] || null;
   },
 
+  /**
+   * Borrado Lógico (Legacy)
+   * Lo dejamos por si en algún momento quieres solo archivar.
+   */
   async eliminarAlbum(idAlbum) {
     await db.query(
       `
@@ -141,6 +145,26 @@ export const albumRepository = {
     );
   },
 
+  /**
+   * 🗑️ BORRADO FÍSICO (Hard Delete)
+   * Elimina el registro de la BD para siempre.
+   * Se debe llamar DESPUÉS de limpiar Cloudinary en el servicio.
+   */
+  async deleteHard(idAlbum) {
+    // 1. Borrar items del carrito relacionados (para evitar error de Foreign Key)
+    await db.query("DELETE FROM items_carrito WHERE idAlbum = ?", [idAlbum]);
+    
+    // 2. Borrar las imágenes de la tabla imagenes
+    await db.query("DELETE FROM imagenes WHERE idAlbum = ?", [idAlbum]);
+
+    // 3. Borrar el álbum
+    const [result] = await db.query("DELETE FROM album WHERE idAlbum = ?", [idAlbum]);
+    return result;
+  },
+
+  /**
+   * ✏️ ACTUALIZAR
+   */
   async actualizarAlbum(idAlbum, data) {
     const {
       nombreEvento,

@@ -113,7 +113,7 @@ export function MainscreenPage() {
         </div>
 
         <div className="col-md-3">
-          <Link to="/app/compras" className="text-decoration-none">
+          <Link to="/app/mis-compras" className="text-decoration-none">
             <div className="border rounded p-3 shadow-sm bg-white h-100">
               <h6 className="fw-bold">📄 Mis compras</h6>
               <p className="text-muted mb-0">Historial de pedidos.</p>
@@ -122,7 +122,7 @@ export function MainscreenPage() {
         </div>
 
         <div className="col-md-3">
-          <Link to="/app/carrito" className="text-decoration-none">
+          <Link to="/app/cart" className="text-decoration-none">
             <div className="border rounded p-3 shadow-sm bg-white h-100">
               <h6 className="fw-bold">🛒 Carrito</h6>
               <p className="text-muted mb-0">Revisá tu compra.</p>

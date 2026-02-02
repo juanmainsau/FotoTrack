@@ -51,19 +51,23 @@ export const albumController = {
     }
   },
 
+  // 🗑️ MODIFICADO: Borrado Físico (Hard Delete)
   async eliminar(req, res) {
     try {
       const { id } = req.params;
-      await albumService.eliminarAlbum(id);
+      
+      // Llamamos al servicio que borra fotos de Cloudinary y registros de la BD
+      await albumService.deleteAlbumHard(id);
+      
       return res.json({
         ok: true,
-        message: "Álbum archivado correctamente",
+        message: "Álbum y sus fotos eliminados permanentemente",
       });
     } catch (err) {
       console.error("Error en eliminar:", err);
       return res
         .status(500)
-        .json({ ok: false, error: "Error al archivar álbum" });
+        .json({ ok: false, error: "Error al eliminar álbum" });
     }
   },
 
@@ -72,6 +76,7 @@ export const albumController = {
       const { id } = req.params;
       const data = req.body;
 
+      // El servicio ahora se encarga de no borrar datos si vienen vacíos (merge)
       await albumService.actualizarAlbum(id, data);
 
       return res.json({
@@ -87,7 +92,7 @@ export const albumController = {
     }
   },
 
-  // ⭐⭐⭐ Crear álbum + imágenes
+  // ⭐ Crear álbum + imágenes (Carga inicial masiva)
   async createComplete(req, res) {
     try {
       // 1) Metadata JSON
@@ -136,6 +141,7 @@ export const albumController = {
       // 4) Procesar imágenes
       const files = req.files || [];
 
+      // Usamos el imageService actualizado que ya gestiona Cloudinary directo
       for (const file of files) {
         await imageService.processSingleImage(file, idAlbum);
       }

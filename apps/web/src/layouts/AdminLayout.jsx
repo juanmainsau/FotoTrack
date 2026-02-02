@@ -19,10 +19,9 @@ export function AdminLayout({ children }) {
         });
 
         if (!res.data?.ok) return navigate("/");
-
-        if (res.data.user.rol !== "admin") {
-          return navigate("/app/mainscreen");
-        }
+        
+        // Si no es admin, lo mandamos a la pantalla de usuario
+        if (res.data.user.rol !== "admin") return navigate("/app/mainscreen");
 
         setUser(res.data.user);
       } catch (err) {
@@ -31,26 +30,30 @@ export function AdminLayout({ children }) {
         return navigate("/");
       }
     }
-
     loadUser();
-  }, []);
+  }, [navigate]);
 
   return (
-    <div className="d-flex" style={{ minHeight: "100vh" }}>
+    // 1. Contenedor Base: Fondo gris y altura mínima. 
+    // IMPORTANTE: No usamos d-flex aquí para evitar conflictos con el fixed sidebar.
+    <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", position: "relative" }}>
+      
+      {/* 2. Sidebar Fijo */}
+      {/* El componente AdminSidebar ya tiene position: fixed y width: 260px */}
       <AdminSidebar user={user} />
 
+      {/* 3. Contenido Principal */}
       <main
-        className="flex-grow-1 d-flex justify-content-center"
         style={{
-          marginLeft: "260px",
-          padding: "32px",
-          backgroundColor: "#ffffff",
+          marginLeft: "260px", // Empujamos el contenido para no tapar la sidebar
+          width: "auto",       // 'auto' hace que ocupe todo el ancho restante disponible
+          minHeight: "100vh",  // Asegura que el área de contenido cubra la altura
+          overflowX: "hidden", // Evita scroll horizontal indeseado
+          display: "block"     // Aseguramos comportamiento de bloque
         }}
       >
-        {/* Contenedor centrado y con max-width */}
-        <div style={{ width: "100%", maxWidth: "1100px" }}>
-          {children}
-        </div>
+        {/* Renderizamos los hijos directamente */}
+        {children}
       </main>
     </div>
   );
