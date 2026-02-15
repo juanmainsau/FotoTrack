@@ -18,6 +18,7 @@ import CheckoutPage from "./pages/CheckoutPage.jsx";
 import { CartPage } from "./pages/CartPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
 import MisComprasPage from "./pages/MisComprasPage.jsx";
+import { UserFaceConfigPage } from "./pages/UserFaceConfigPage"; // ✅ Importación correcta
 
 // PÁGINAS DE ADMIN
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
@@ -34,7 +35,7 @@ export default function App() {
       <Route path="/" element={<LandingPage />} />
 
       {/* ======================== */}
-      {/*      ÁREA DE USUARIO     */}
+      {/* ÁREA DE USUARIO     */}
       {/* ======================== */}
       <Route path="/app" element={<UserLayout />}>
         <Route path="mainscreen" element={<MainscreenPage />} />
@@ -50,13 +51,16 @@ export default function App() {
         <Route path="cart" element={<CartPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
 
-        {/* PERFIL + MIS COMPRAS */}
+        {/* PERFIL + MIS COMPRAS + CONFIG FACIAL */}
         <Route path="perfil" element={<UserProfilePage />} />
         <Route path="mis-compras" element={<MisComprasPage />} />
+        
+        {/* 👇 RUTA AGREGADA 👇 */}
+        <Route path="configuracion-facial" element={<UserFaceConfigPage />} />
       </Route>
 
       {/* ======================== */}
-      {/*          ADMIN           */}
+      {/* ADMIN          */}
       {/* ======================== */}
       <Route
         path="/admin"

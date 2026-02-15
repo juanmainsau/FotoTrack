@@ -1,8 +1,10 @@
 // src/controllers/album.controller.js
 import { albumService } from "../services/album.service.js";
-import cloudinary from "../config/cloudinary.js";
 import { db } from "../config/db.js";
 import { imageService } from "../services/image.service.js";
+// 👇 Importamos el servicio de IA y el sistema de archivos
+import { faceService } from "../services/face.service.js";
+import fs from "fs/promises"; 
 
 export const albumController = {
 
@@ -12,9 +14,7 @@ export const albumController = {
       return res.json(albums);
     } catch (err) {
       console.error("Error en getAll:", err);
-      return res
-        .status(500)
-        .json({ ok: false, error: "Error al obtener álbumes" });
+      return res.status(500).json({ ok: false, error: "Error al obtener álbumes" });
     }
   },
 
@@ -24,17 +24,13 @@ export const albumController = {
       const album = await albumService.getAlbumById(id);
 
       if (!album) {
-        return res
-          .status(404)
-          .json({ ok: false, error: "Álbum no encontrado" });
+        return res.status(404).json({ ok: false, error: "Álbum no encontrado" });
       }
 
       return res.json({ ok: true, album });
     } catch (err) {
       console.error("Error en getById:", err);
-      return res
-        .status(500)
-        .json({ ok: false, error: "Error al obtener álbum" });
+      return res.status(500).json({ ok: false, error: "Error al obtener álbum" });
     }
   },
 
@@ -45,18 +41,13 @@ export const albumController = {
       return res.status(201).json({ ok: true, ...nuevoAlbum });
     } catch (err) {
       console.error("Error en create:", err);
-      return res
-        .status(400)
-        .json({ ok: false, error: err.message || "Error al crear el álbum" });
+      return res.status(400).json({ ok: false, error: err.message || "Error al crear el álbum" });
     }
   },
 
-  // 🗑️ MODIFICADO: Borrado Físico (Hard Delete)
   async eliminar(req, res) {
     try {
       const { id } = req.params;
-      
-      // Llamamos al servicio que borra fotos de Cloudinary y registros de la BD
       await albumService.deleteAlbumHard(id);
       
       return res.json({
@@ -65,9 +56,7 @@ export const albumController = {
       });
     } catch (err) {
       console.error("Error en eliminar:", err);
-      return res
-        .status(500)
-        .json({ ok: false, error: "Error al eliminar álbum" });
+      return res.status(500).json({ ok: false, error: "Error al eliminar álbum" });
     }
   },
 
@@ -75,8 +64,6 @@ export const albumController = {
     try {
       const { id } = req.params;
       const data = req.body;
-
-      // El servicio ahora se encarga de no borrar datos si vienen vacíos (merge)
       await albumService.actualizarAlbum(id, data);
 
       return res.json({
@@ -92,23 +79,12 @@ export const albumController = {
     }
   },
 
-  // ⭐ Crear álbum + imágenes (Carga inicial masiva)
+  // ⭐ Crear álbum + imágenes + IA + Limpieza segura
   async createComplete(req, res) {
     try {
       // 1) Metadata JSON
       const metadata = JSON.parse(req.body.metadata);
-
-      const {
-        nombreEvento,
-        fechaEvento,
-        localizacion,
-        descripcion,
-        precioFoto,
-        precioAlbum,
-        estado,
-        visibilidad,
-        tags,
-      } = metadata;
+      const { nombreEvento, fechaEvento, localizacion, descripcion, precioFoto, precioAlbum, estado, visibilidad, tags } = metadata;
 
       // 2) Crear álbum en BD
       const [result] = await db.execute(
@@ -116,17 +92,7 @@ export const albumController = {
           nombreEvento, fechaEvento, localizacion, descripcion,
           precioFoto, precioAlbum, estado, visibilidad, tags
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          nombreEvento,
-          fechaEvento,
-          localizacion,
-          descripcion,
-          precioFoto,
-          precioAlbum,
-          estado,
-          visibilidad,
-          tags,
-        ]
+        [nombreEvento, fechaEvento, localizacion, descripcion, precioFoto, precioAlbum, estado, visibilidad, tags]
       );
 
       const idAlbum = result.insertId;
@@ -138,13 +104,41 @@ export const albumController = {
         [codigoInterno, idAlbum]
       );
 
-      // 4) Procesar imágenes
+      // 4) Procesar imágenes e invocar a la IA
       const files = req.files || [];
+      console.log(`🚀 Procesando ${files.length} imágenes para el álbum ${idAlbum}...`);
 
-      // Usamos el imageService actualizado que ya gestiona Cloudinary directo
-      for (const file of files) {
-        await imageService.processSingleImage(file, idAlbum);
-      }
+      // Usamos Promise.all para subir todo en paralelo
+      const processingPromises = files.map(async (file) => {
+        try {
+          // A. Subir a Cloudinary y Guardar en DB (IMPORTANTE: imageService YA NO BORRA el archivo)
+          const savedImage = await imageService.processSingleImage(file, idAlbum);
+          
+          // B. Si se guardó bien, disparar la IA
+          if (savedImage && savedImage.idImagen) {
+            // No usamos await para no bloquear la respuesta al usuario
+            faceService.processAndIndexImage(file.path, savedImage.idImagen)
+              .then(matches => {
+                 if (matches > 0) console.log(`🤖 [IA] MATCH detectado en img ${savedImage.idImagen}`);
+              })
+              .catch(err => console.error(`❌ [IA] Error analizando img ${savedImage.idImagen}:`, err))
+              .finally(() => {
+                 // C. 🗑️ LIMPIEZA FINAL: Aquí es seguro borrar el archivo porque la IA ya terminó
+                 fs.unlink(file.path).catch(() => {}); 
+              });
+          } else {
+             // Si falló el guardado en BD, borramos el archivo inmediatamente
+             fs.unlink(file.path).catch(() => {});
+          }
+        } catch (error) {
+          console.error(`Error procesando archivo ${file.originalname}:`, error);
+          // Si hubo error en la subida, borramos el archivo para no dejar basura
+          fs.unlink(file.path).catch(() => {});
+        }
+      });
+
+      // Esperamos a que todas las subidas a Cloudinary terminen (la IA corre en background)
+      await Promise.all(processingPromises);
 
       return res.json({
         success: true,

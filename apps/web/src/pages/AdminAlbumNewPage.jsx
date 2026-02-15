@@ -61,16 +61,25 @@ export function AdminAlbumNewPage() {
 
       // Construir FormData
       const formData = new FormData();
+      
+      // Si tu backend espera los datos del álbum como un JSON string en "metadata":
       formData.append("metadata", JSON.stringify(form));
+      
+      // O si tu backend espera los campos sueltos (ajusta según tu controlador createAlbum):
+      // Object.keys(form).forEach(key => formData.append(key, form[key]));
+
+      // 👇 CORRECCIÓN AQUÍ: Usamos "images" (en inglés) para coincidir con el backend
       imagenes.forEach((file) => {
-        formData.append("imagenes", file);
+        formData.append("images", file); 
       });
 
       // Enviar al backend
+      // Asegúrate de que esta ruta '/api/albums/complete' use el middleware uploadMultipleImages
       const res = await fetch("http://localhost:4000/api/albums/complete", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
+          // No poner 'Content-Type': 'multipart/form-data', el navegador lo pone solo
         },
         body: formData,
       });

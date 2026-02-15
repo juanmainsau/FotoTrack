@@ -7,17 +7,23 @@ import "dotenv/config";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Rutas
+// =====================================================
+// 📂 IMPORTACIÓN DE RUTAS
+// =====================================================
 import authRoutes from "./routes/auth.routes.js";
-import imageRoutes from "./routes/images.routes.js";   // ✔ único router correcto
+import userRoutes from "./routes/user.routes.js";     // 👈 NUEVO: Rutas de usuario (Face ID)
+import imageRoutes from "./routes/images.routes.js";
 import albumRoutes from "./routes/album.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
 import purchaseRoutes from "./routes/purchase.routes.js";
 
-// Middlewares / Controllers
+// =====================================================
+// 🧠 MIDDLEWARES / CONTROLLERS / SERVICES
+// =====================================================
 import { authMiddleware } from "./middlewares/auth.middleware.js";
 import { authController } from "./controllers/auth.controller.js";
+import { faceService } from "./services/face.service.js"; // 👈 NUEVO: Servicio de IA
 
 // Cloudinary
 import { v2 as cloudinary } from "cloudinary";
@@ -60,8 +66,11 @@ app.use(morgan("dev"));
 // 🔐 Autenticación
 app.use("/api/auth", authRoutes);
 
+// 👤 Usuarios (Configuración Face ID, Perfil)
+app.use("/api/users", userRoutes); // 👈 NUEVO
+
 // 📸 Imágenes
-app.use("/api/imagenes", imageRoutes);  // ✔ único router de imágenes
+app.use("/api/imagenes", imageRoutes);
 
 // 📁 Álbumes
 app.use("/api/albums", albumRoutes);
@@ -76,7 +85,7 @@ app.use("/api/carrito", cartRoutes);
 app.use("/api/compras", purchaseRoutes);
 
 // =====================================================
-// 🔐 Obtener usuario autenticado
+// 🔐 Obtener usuario autenticado (Helper rápido)
 // =====================================================
 app.get("/api/auth/me", authMiddleware, authController.me);
 
@@ -99,7 +108,14 @@ app.get("/api/health", (_req, res) => {
 // =====================================================
 // ⭐ INICIAR SERVIDOR
 // =====================================================
-app.listen(PORT, () => {
+// Hacemos el callback async para esperar la carga de modelos IA
+app.listen(PORT, async () => {
+  console.log(`\n==================================================`);
   console.log(`✔ API running on http://localhost:${PORT}`);
-  console.log("✔ Cloudinary conectado como:", process.env.CLOUDINARY_CLOUD_NAME);
+  console.log(`✔ Cloudinary conectado como: ${process.env.CLOUDINARY_CLOUD_NAME}`);
+  
+  // Cargar Modelos de Reconocimiento Facial
+  await faceService.loadModels();
+  
+  console.log(`==================================================\n`);
 });

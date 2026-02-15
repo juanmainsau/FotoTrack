@@ -1,4 +1,4 @@
-// src/middlewares/upload.middleware.js
+// apps/api/src/middlewares/upload.middleware.js
 import multer from "multer";
 import path from "path";
 import os from "os";
@@ -8,34 +8,50 @@ import os from "os";
 // -------------------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, os.tmpdir()); // carpeta temporal del sistema
+    // Usamos la carpeta temporal del sistema operativo (más rápido y seguro)
+    cb(null, os.tmpdir());
   },
   filename: (req, file, cb) => {
+    // Generamos nombre único para evitar colisiones
     const unique = Date.now() + "_" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
-    cb(null, unique + ext);
+    cb(null, `${file.fieldname}-${unique}${ext}`);
   },
 });
 
 // -------------------------------
+// FILTRO DE ARCHIVOS (Solo Imágenes)
+// -------------------------------
+const fileFilter = (req, file, cb) => {
+  // Aceptamos jpg, jpeg, png, webp, gif
+  if (file.mimetype.startsWith("image/")) {
+    cb(null, true);
+  } else {
+    cb(new Error("Formato de archivo no soportado. Solo imágenes."), false);
+  }
+};
+
+// -------------------------------
 // CONFIGURACIÓN DE MULTER
-// SIN LÍMITE DE TAMAÑO DE ARCHIVO
 // -------------------------------
 const multerConfig = {
-  storage,
-  // ❌ Eliminado: limits.fileSize
-  // Con esto multer NO restringe el tamaño de cada archivo.
+  storage: storage,
+  fileFilter: fileFilter,
+  // Sin límite de tamaño de archivo (o puedes descomentar abajo para poner uno)
+  // limits: { fileSize: 10 * 1024 * 1024 }, // Ejemplo: 10MB
 };
 
 // -------------------------------
 // EXPORTS
 // -------------------------------
 
-// 🔹 Subida de una sola imagen
-export const uploadSingleImage = multer(multerConfig).single("imagen");
+// 🔹 Subida de una sola imagen (ej: Selfie)
+// ⚠️ IMPORTANTE: En el Frontend/Postman el campo debe llamarse "image"
+export const uploadSingleImage = multer(multerConfig).single("image");
 
-// 🔹 Subida de múltiples imágenes (crear álbum y editor)
+// 🔹 Subida de múltiples imágenes (ej: Álbum)
+// ⚠️ IMPORTANTE: En el Frontend/Postman el campo debe llamarse "images"
 export const uploadMultipleImages = multer(multerConfig).array(
-  "imagenes",
-  200 // máximo 200 archivos por request
+  "images", 
+  200 // Máximo 200 archivos por subida
 );
