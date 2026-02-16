@@ -11,19 +11,20 @@ import { fileURLToPath } from "url";
 // 📂 IMPORTACIÓN DE RUTAS
 // =====================================================
 import authRoutes from "./routes/auth.routes.js";
-import userRoutes from "./routes/user.routes.js";     // 👈 NUEVO: Rutas de usuario (Face ID)
+import userRoutes from "./routes/user.routes.js";
 import imageRoutes from "./routes/images.routes.js";
 import albumRoutes from "./routes/album.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
 import purchaseRoutes from "./routes/purchase.routes.js";
+import paymentRoutes from "./routes/payment.routes.js"; // 👈 NUEVO: Rutas de Mercado Pago
 
 // =====================================================
 // 🧠 MIDDLEWARES / CONTROLLERS / SERVICES
 // =====================================================
 import { authMiddleware } from "./middlewares/auth.middleware.js";
 import { authController } from "./controllers/auth.controller.js";
-import { faceService } from "./services/face.service.js"; // 👈 NUEVO: Servicio de IA
+import { faceService } from "./services/face.service.js";
 
 // Cloudinary
 import { v2 as cloudinary } from "cloudinary";
@@ -67,7 +68,7 @@ app.use(morgan("dev"));
 app.use("/api/auth", authRoutes);
 
 // 👤 Usuarios (Configuración Face ID, Perfil)
-app.use("/api/users", userRoutes); // 👈 NUEVO
+app.use("/api/users", userRoutes);
 
 // 📸 Imágenes
 app.use("/api/imagenes", imageRoutes);
@@ -81,8 +82,11 @@ app.use("/api/config", configRoutes);
 // 🛒 Carrito
 app.use("/api/carrito", cartRoutes);
 
-// 💳 Compras
+// 💳 Compras (Lógica interna: BD, ZIPs, Historial)
 app.use("/api/compras", purchaseRoutes);
+
+// 💸 Pagos (Pasarela: Mercado Pago)
+app.use("/api/payment", paymentRoutes); // 👈 NUEVO: Endpoint para generar links de pago
 
 // =====================================================
 // 🔐 Obtener usuario autenticado (Helper rápido)

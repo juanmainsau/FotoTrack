@@ -1,15 +1,10 @@
-// apps/web/src/pages/CheckoutPage.jsx
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom"; // No necesitamos navegar internamente, saldremos a MP
 
 export function CheckoutPage() {
   const [carrito, setCarrito] = useState(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [paymentMethod] = useState("simulado");
-  const [showSuccess, setShowSuccess] = useState(false);
-
-  const navigate = useNavigate();
 
   // ----------------------------
   // Cargar carrito
@@ -17,19 +12,15 @@ export function CheckoutPage() {
   async function loadCart() {
     try {
       const token = localStorage.getItem("fototrack-token");
-
       const res = await fetch("http://localhost:4000/api/carrito/mio", {
         headers: { Authorization: "Bearer " + token },
       });
-
       const data = await res.json();
-
       if (!data.ok) throw new Error("Error cargando carrito");
-
       setCarrito(data.carrito);
     } catch (err) {
       console.error(err);
-      alert("Error cargando carrito. Intentá recargar la página.");
+      alert("Error cargando carrito.");
     } finally {
       setLoading(false);
     }
@@ -40,9 +31,9 @@ export function CheckoutPage() {
   }, []);
 
   // ----------------------------
-  // Confirmar compra
+  // 👇 CAMBIO CLAVE: Pagar con Mercado Pago
   // ----------------------------
-  async function handleConfirmPurchase() {
+  async function handleMercadoPagoPayment() {
     if (!carrito || carrito.items.length === 0) {
       alert("El carrito está vacío.");
       return;
@@ -53,33 +44,42 @@ export function CheckoutPage() {
     try {
       const token = localStorage.getItem("fototrack-token");
 
-      const res = await fetch("http://localhost:4000/api/compras", {
+      // 1. Preparamos los ítems del carrito para Mercado Pago
+      // El backend espera: { id, title, price, quantity }
+      const itemsToPay = carrito.items.map((item) => ({
+        id: item.idImagen, 
+        title: `Foto (Álbum: ${item.nombreAlbum || 'Evento'})`, 
+        price: item.precioUnitario,
+        quantity: 1,
+      }));
+
+      // 2. Llamamos al endpoint de PAGOS (Payment Controller)
+      // OJO: Ya no llamamos a /api/compras, sino a /api/payment/create-order
+      const res = await fetch("http://localhost:4000/api/payment/create-order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-        body: JSON.stringify({
-          idMetodoPago: 1, // pago simulado
-        }),
+        body: JSON.stringify({ items: itemsToPay }),
       });
 
       const data = await res.json();
 
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || "Error al procesar compra");
+      if (!res.ok) {
+        throw new Error(data.error || "Error al generar la preferencia de pago");
       }
 
-      // Mostrar modal de éxito
-      setShowSuccess(true);
-
-      // Vaciar visualmente el carrito
-      setCarrito({ items: [], total: 0 });
+      // 3. Redirección a Mercado Pago
+      if (data.url) {
+        window.location.href = data.url; 
+      } else {
+        alert("No se recibió el link de pago.");
+      }
 
     } catch (err) {
       console.error(err);
-      alert("No se pudo completar la compra.");
-    } finally {
+      alert("Hubo un error al conectar con Mercado Pago.");
       setProcessing(false);
     }
   }
@@ -89,13 +89,18 @@ export function CheckoutPage() {
   // ----------------------------
   return (
     <div className="container py-4" style={{ maxWidth: 900 }}>
-      <h2 className="fw-bold mb-4">💳 Confirmar compra</h2>
+      <h2 className="fw-bold mb-4">💳 Finalizar Compra</h2>
 
-      {loading && <p>Cargando datos...</p>}
+      {loading && (
+        <div className="text-center py-5">
+            <div className="spinner-border text-primary" role="status"></div>
+            <p className="mt-2">Cargando tu carrito...</p>
+        </div>
+      )}
 
       {!loading && carrito?.items.length === 0 && (
-        <div className="alert alert-info">
-          Tu carrito está vacío. Agrega fotos para continuar.
+        <div className="alert alert-info shadow-sm">
+          Tu carrito está vacío. ¡Ve a buscar tus fotos!
         </div>
       )}
 
@@ -104,8 +109,7 @@ export function CheckoutPage() {
           {/* LISTADO DE FOTOS */}
           <div className="card border-0 shadow-sm mb-4">
             <div className="card-body">
-
-              <h5 className="fw-semibold mb-3">Fotos seleccionadas</h5>
+              <h5 className="fw-semibold mb-3">Resumen del Pedido</h5>
 
               {carrito.items.map((item) => (
                 <div
@@ -129,105 +133,55 @@ export function CheckoutPage() {
                       <small className="text-muted">{item.nombreAlbum}</small>
                     </div>
                   </div>
-
-                  <strong>${item.precioUnitario}</strong>
+                  <strong className="fs-5">${item.precioUnitario}</strong>
                 </div>
               ))}
 
               {/* TOTAL */}
-              <div className="d-flex justify-content-end mt-3">
-                <h4 className="fw-bold">Total: ${carrito.total}</h4>
+              <div className="d-flex justify-content-end mt-3 align-items-center">
+                <span className="text-muted me-3">Total a pagar:</span>
+                <h3 className="fw-bold text-primary m-0">${carrito.total}</h3>
               </div>
-
             </div>
           </div>
 
           {/* MÉTODO DE PAGO */}
-          <div className="card border-0 shadow-sm mb-4">
+          <div className="card border-0 shadow-sm mb-4 bg-light">
             <div className="card-body">
-              <h5 className="fw-semibold mb-3">Método de pago</h5>
-
-              <div className="form-check mb-2">
-                <input
-                  className="form-check-input"
-                  type="radio"
-                  checked
-                  readOnly
+              <h5 className="fw-semibold mb-3">Medio de Pago</h5>
+              <div className="d-flex align-items-center gap-2">
+                <img 
+                    src="https://img.icons8.com/color/48/mercadopago.png" 
+                    alt="Logo MP" 
+                    width="40" 
                 />
-                <label className="form-check-label">
-                  Pago simulado (rápido para pruebas)
-                </label>
+                <div>
+                    <strong>Mercado Pago</strong>
+                    <p className="mb-0 text-muted small">Tarjetas de crédito, débito y dinero en cuenta.</p>
+                </div>
               </div>
-
-              <p className="text-muted small">
-                En la versión final podrás habilitar MercadoPago u otros medios.
-              </p>
             </div>
           </div>
 
-          {/* BOTÓN DE COMPRA */}
-          <div className="d-flex justify-content-end">
+          {/* BOTÓN DE ACCIÓN */}
+          <div className="d-grid gap-2 d-md-flex justify-content-md-end">
             <button
-              className="btn btn-success px-4"
-              onClick={handleConfirmPurchase}
+              className="btn btn-primary btn-lg px-5 shadow"
+              onClick={handleMercadoPagoPayment} // 👈 Llamamos a la nueva función
               disabled={processing}
             >
-              {processing ? "Procesando compra..." : "Confirmar compra"}
+              {processing ? (
+                <>
+                    <span className="spinner-border spinner-border-sm me-2"></span>
+                    Redirigiendo a Mercado Pago...
+                </>
+              ) : (
+                "Pagar ahora"
+              )}
             </button>
           </div>
         </>
       )}
-
-      {/* =========================== */}
-      {/* MODAL DE ÉXITO               */}
-      {/* =========================== */}
-      {showSuccess && (
-        <div className="modal fade show"
-          style={{
-            display: "block",
-            backgroundColor: "rgba(0,0,0,0.4)",
-          }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-
-              <div className="modal-header">
-                <h5 className="modal-title">¡Compra realizada con éxito!</h5>
-                <button className="btn-close" onClick={() => setShowSuccess(false)}></button>
-              </div>
-
-              <div className="modal-body">
-                <p className="mb-2">
-                  🎉 <strong>¡Gracias por tu compra!</strong>
-                </p>
-
-                <p className="text-muted">
-                  Te enviamos un correo con el enlace de descarga de tus fotos en alta calidad.<br />
-                  Revisá tu bandeja de entrada (o la carpeta de Spam).
-                </p>
-              </div>
-
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => navigate("/app/mainscreen")}
-                >
-                  Volver al inicio
-                </button>
-
-                <button
-                  className="btn btn-primary"
-                  onClick={() => navigate("/app/albums")}
-                >
-                  Explorar álbumes
-                </button>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

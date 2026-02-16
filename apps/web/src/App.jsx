@@ -18,7 +18,8 @@ import CheckoutPage from "./pages/CheckoutPage.jsx";
 import { CartPage } from "./pages/CartPage.jsx";
 import UserProfilePage from "./pages/UserProfilePage.jsx";
 import MisComprasPage from "./pages/MisComprasPage.jsx";
-import { UserFaceConfigPage } from "./pages/UserFaceConfigPage"; // ✅ Importación correcta
+import { UserFaceConfigPage } from "./pages/UserFaceConfigPage";
+import SuccessPage from "./pages/SuccessPage.jsx"; // 👈 NUEVO: Importación de página de éxito
 
 // PÁGINAS DE ADMIN
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
@@ -34,8 +35,16 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
 
+      {/* ================================================= */}
+      {/* 💳 RETORNO DE MERCADO PAGO (Rutas Raíz)          */}
+      {/* Estas rutas coinciden con las configuradas en el Backend */}
+      {/* ================================================= */}
+      <Route path="/checkout/success" element={<SuccessPage />} />
+      <Route path="/checkout/failure" element={<SuccessPage />} />
+
+
       {/* ======================== */}
-      {/* ÁREA DE USUARIO     */}
+      {/* ÁREA DE USUARIO      */}
       {/* ======================== */}
       <Route path="/app" element={<UserLayout />}>
         <Route path="mainscreen" element={<MainscreenPage />} />
@@ -54,8 +63,6 @@ export default function App() {
         {/* PERFIL + MIS COMPRAS + CONFIG FACIAL */}
         <Route path="perfil" element={<UserProfilePage />} />
         <Route path="mis-compras" element={<MisComprasPage />} />
-        
-        {/* 👇 RUTA AGREGADA 👇 */}
         <Route path="configuracion-facial" element={<UserFaceConfigPage />} />
       </Route>
 
