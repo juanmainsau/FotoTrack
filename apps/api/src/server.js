@@ -1,4 +1,4 @@
-﻿// src/server.js
+﻿// apps/api/src/server.js (o app.js)
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -16,8 +16,8 @@ import imageRoutes from "./routes/images.routes.js";
 import albumRoutes from "./routes/album.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
-import purchaseRoutes from "./routes/purchase.routes.js";
-import paymentRoutes from "./routes/payment.routes.js"; // 👈 NUEVO: Rutas de Mercado Pago
+import purchaseRoutes from "./routes/purchase.routes.js"; // Para historial y descargas
+import paymentRoutes from "./routes/payment.routes.js";   // 👈 IMPORTANTE: Rutas de MP y Webhook
 
 // =====================================================
 // 🧠 MIDDLEWARES / CONTROLLERS / SERVICES
@@ -51,14 +51,20 @@ cloudinary.config({
 // =====================================================
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "http://localhost:5173", // Tu Frontend
     credentials: true,
   })
 );
 
+// Seguridad y Logs
 app.use(helmet());
-app.use(express.json());
 app.use(morgan("dev"));
+
+// ⚠️ IMPORTANTE: Parseo de JSON
+// Esto debe ir ANTES de las rutas para que req.body funcione
+// (incluso para el Webhook de Mercado Pago en esta integración básica)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // =====================================================
 // ⭐ RUTAS API
@@ -82,11 +88,14 @@ app.use("/api/config", configRoutes);
 // 🛒 Carrito
 app.use("/api/carrito", cartRoutes);
 
-// 💳 Compras (Lógica interna: BD, ZIPs, Historial)
+// 💳 Compras (Lógica interna: Historial, Descargas ZIP)
+// Aquí estará: /api/compras/public/download/:id (Link del correo)
 app.use("/api/compras", purchaseRoutes);
 
 // 💸 Pagos (Pasarela: Mercado Pago)
-app.use("/api/payment", paymentRoutes); // 👈 NUEVO: Endpoint para generar links de pago
+// Aquí estará: /api/payment/create-order y /api/payment/webhook
+// Y también la prueba: /api/payment/test-email-simulado
+app.use("/api/payment", paymentRoutes); 
 
 // =====================================================
 // 🔐 Obtener usuario autenticado (Helper rápido)
@@ -118,8 +127,14 @@ app.listen(PORT, async () => {
   console.log(`✔ API running on http://localhost:${PORT}`);
   console.log(`✔ Cloudinary conectado como: ${process.env.CLOUDINARY_CLOUD_NAME}`);
   
-  // Cargar Modelos de Reconocimiento Facial
-  await faceService.loadModels();
+  try {
+    // Cargar Modelos de Reconocimiento Facial
+    console.log("⏳ Cargando modelos de FaceAPI...");
+    await faceService.loadModels();
+    console.log("🤖 Modelos de IA cargados correctamente.");
+  } catch (error) {
+    console.error("❌ Error cargando modelos de IA:", error.message);
+  }
   
   console.log(`==================================================\n`);
 });

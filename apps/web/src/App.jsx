@@ -16,10 +16,11 @@ import { AlbumGalleryPage } from "./pages/AlbumGalleryPage";
 import MyPhotosPage from "./pages/MyPhotosPage.jsx";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
 import { CartPage } from "./pages/CartPage.jsx";
-import UserProfilePage from "./pages/UserProfilePage.jsx";
+import UserProfilePage from "./pages/UserProfilePage.jsx"; // El menú principal del perfil
+import ProfilePage from "./pages/ProfilePage.jsx";         // 👈 NUEVO: La pantalla de datos personales
 import MisComprasPage from "./pages/MisComprasPage.jsx";
 import { UserFaceConfigPage } from "./pages/UserFaceConfigPage";
-import SuccessPage from "./pages/SuccessPage.jsx"; // 👈 NUEVO: Importación de página de éxito
+import SuccessPage from "./pages/SuccessPage.jsx"; 
 
 // PÁGINAS DE ADMIN
 import { AdminDashboardPage } from "./pages/AdminDashboardPage";
@@ -37,11 +38,9 @@ export default function App() {
 
       {/* ================================================= */}
       {/* 💳 RETORNO DE MERCADO PAGO (Rutas Raíz)          */}
-      {/* Estas rutas coinciden con las configuradas en el Backend */}
       {/* ================================================= */}
       <Route path="/checkout/success" element={<SuccessPage />} />
       <Route path="/checkout/failure" element={<SuccessPage />} />
-
 
       {/* ======================== */}
       {/* ÁREA DE USUARIO      */}
@@ -60,8 +59,9 @@ export default function App() {
         <Route path="cart" element={<CartPage />} />
         <Route path="checkout" element={<CheckoutPage />} />
 
-        {/* PERFIL + MIS COMPRAS + CONFIG FACIAL */}
+        {/* PERFIL Y SUB-SECCIONES */}
         <Route path="perfil" element={<UserProfilePage />} />
+        <Route path="perfil/info" element={<ProfilePage />} /> {/* 👈 NUEVA RUTA PARA TUS DATOS */}
         <Route path="mis-compras" element={<MisComprasPage />} />
         <Route path="configuracion-facial" element={<UserFaceConfigPage />} />
       </Route>

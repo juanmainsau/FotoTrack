@@ -71,7 +71,9 @@ export function CartPage() {
   // Navegar al checkout
   // ----------------------------
   function goToCheckout() {
-    navigate("/app/checkout"); // ← CORREGIDO
+    navigate("/app/checkout", { 
+      state: { idCarrito: carrito?.idCarrito } 
+    }); 
   }
 
   return (

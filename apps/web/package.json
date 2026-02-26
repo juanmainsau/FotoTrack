@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mercadopago/sdk-react": "^1.0.7",
     "bootstrap": "^5.3.3",
     "canvas-confetti": "^1.9.4",
     "firebase": "^12.6.0",

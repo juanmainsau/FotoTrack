@@ -87,7 +87,11 @@ export default function UserProfilePage() {
         </div>
 
         {/* INFORMACIÓN DE PERFIL */}
-        <div className="p-4 shadow-sm rounded bg-white">
+        <div 
+          className="p-4 shadow-sm rounded bg-white"
+          style={{ cursor: "pointer", transition: "transform 0.2s" }} // 👈 Efecto visual
+          onClick={() => navigate("/app/perfil/info")}                // 👈 NUEVO: Enlace a la pantalla de datos
+        >
           <div className="mb-2 text-secondary">
              <i className="bi bi-person-vcard fs-2"></i>
           </div>

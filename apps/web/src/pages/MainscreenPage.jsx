@@ -104,7 +104,7 @@ export function MainscreenPage() {
         </div>
 
         <div className="col-md-3">
-          <Link to="/app/myphotos" className="text-decoration-none">
+          <Link to="/app/my-photos" className="text-decoration-none">
             <div className="border rounded p-3 shadow-sm bg-white h-100">
               <h6 className="fw-bold">🙂 Encontrar mis fotos</h6>
               <p className="text-muted mb-0">Reconocimiento facial.</p>

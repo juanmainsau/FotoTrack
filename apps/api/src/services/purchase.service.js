@@ -1,6 +1,6 @@
 import { purchaseRepository } from "../repositories/purchase.repository.js";
 import archiver from "archiver";
-import { db } from "../config/db.js"; // CORRECTO
+import { db } from "../config/db.js";
 
 export const purchaseService = {
   
@@ -40,7 +40,7 @@ export const purchaseService = {
       return { ok: true, idCompra };
 
     } catch (err) {
-      console.error("Error en purchaseService.createPurchase:", err);
+      console.error("❌ Error en purchaseService.createPurchase:", err);
 
       if (connection) {
         await purchaseRepository.rollback(connection);
@@ -51,6 +51,7 @@ export const purchaseService = {
   },
 
   async getMyPurchases(idUsuario) {
+    // MEJORA: Cambiamos a LEFT JOIN en 'imagenes' por si en el futuro vendes algo que no sea una foto suelta (ej: un pase o álbum).
     const [rows] = await db.query(
       `
       SELECT 
@@ -64,7 +65,7 @@ export const purchaseService = {
         i.rutaMiniatura
       FROM compras c
       JOIN items_compra ic ON c.idCompra = ic.idCompra
-      JOIN imagenes i ON ic.idImagen = i.idImagen
+      LEFT JOIN imagenes i ON ic.idImagen = i.idImagen
       WHERE c.idUsuario = ?
       ORDER BY c.fecha DESC
       `,
@@ -88,10 +89,11 @@ export const purchaseService = {
         idItemCompra: row.idItemCompra,
         tipoProducto: row.tipoProducto,
         idImagen: row.idImagen,
-        miniatura: row.rutaMiniatura,
+        miniatura: row.rutaMiniatura || "https://via.placeholder.com/150?text=Sin+Imagen", // MEJORA: Fallback de seguridad visual
         precioUnitario: row.precioUnitario,
       });
 
+      // Sumamos el total acumulando el precio de cada item
       comprasMap[row.idCompra].total += Number(row.precioUnitario);
     }
 
@@ -99,52 +101,66 @@ export const purchaseService = {
   },
 
   async generateZip(idCompra, idUsuario) {
-    // Verificar compra
+    // 1. Verificar compra y propiedad
     const [compraRows] = await db.query(
       "SELECT * FROM compras WHERE idCompra = ? AND idUsuario = ?",
       [idCompra, idUsuario]
     );
 
     if (compraRows.length === 0) {
-      throw new Error("Compra no encontrada o no pertenece al usuario.");
+      throw new Error("Compra no encontrada o no tienes permisos para acceder a ella.");
     }
 
-    // Obtener imágenes originales
+    // 2. Obtener imágenes originales
     const [items] = await db.query(
       `
-      SELECT i.rutaOriginal AS urlOriginal
+      SELECT i.rutaOriginal AS urlOriginal, i.idImagen
       FROM items_compra ic
       JOIN imagenes i ON ic.idImagen = i.idImagen
-      WHERE ic.idCompra = ?
+      WHERE ic.idCompra = ? AND i.rutaOriginal IS NOT NULL
       `,
       [idCompra]
     );
 
     if (items.length === 0) {
-      throw new Error("No hay imágenes en esta compra.");
+      throw new Error("No hay imágenes válidas en esta compra.");
     }
 
-    // Crear ZIP
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    // 3. Inicializar Archiver
+    const archive = archiver("zip", { zlib: { level: 9 } }); // Nivel de compresión máximo
 
     archive.on("error", (err) => {
+      console.error("❌ Error interno del archiver:", err);
       throw err;
     });
 
-    // Descargar imágenes y agregarlas al ZIP
+    // 4. Descargar y adjuntar (Con manejo de errores individual)
     for (let i = 0; i < items.length; i++) {
-      const { urlOriginal } = items[i];
+      const { urlOriginal, idImagen } = items[i];
 
-      const response = await fetch(urlOriginal);
-      const buffer = Buffer.from(await response.arrayBuffer());
+      try {
+        const response = await fetch(urlOriginal);
+        
+        // MEJORA: Verificamos si la imagen real existe en el bucket/servidor antes de agregarla.
+        if (!response.ok) {
+          console.warn(`⚠️ Omitiendo imagen ${idImagen}: URL inaccesible (${response.status})`);
+          continue; // Si falla una foto, no rompemos todo el ZIP, simplemente pasamos a la siguiente.
+        }
 
-      archive.append(buffer, {
-        name: `foto_${i + 1}.jpg`,
-      });
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        archive.append(buffer, {
+          name: `FotoTrack_${idImagen}_${i + 1}.jpg`, // MEJORA: Nombres únicos y prolijos
+        });
+        
+      } catch (fetchError) {
+        console.error(`❌ Fallo al descargar la foto ID: ${idImagen}`, fetchError);
+      }
     }
 
-    archive.finalize(); // <-- NECESARIO
-    return archive;     // <-- DEVOLVER ZIP STREAM
+    // 5. Finalizar y retornar el stream
+    archive.finalize(); 
+    return archive; 
   }
-
 };
