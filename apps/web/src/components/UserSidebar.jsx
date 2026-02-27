@@ -48,7 +48,7 @@ export function UserSidebar({ user }) {
             </Link>
 
             <Link to="/app/albums" className={`nav-link ${isActive("/app/albums")}`}>
-              📸 Explorar álbumes
+              📸 Galería de álbumes
             </Link>
 
             <Link to="/app/my-photos" className={`nav-link ${isActive("/app/my-photos")}`}>

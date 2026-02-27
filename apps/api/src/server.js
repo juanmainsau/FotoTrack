@@ -1,4 +1,4 @@
-﻿// apps/api/src/server.js (o app.js)
+﻿// apps/api/src/server.js 
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -16,8 +16,8 @@ import imageRoutes from "./routes/images.routes.js";
 import albumRoutes from "./routes/album.routes.js";
 import configRoutes from "./routes/config.routes.js";
 import cartRoutes from "./routes/cart.routes.js";
-import purchaseRoutes from "./routes/purchase.routes.js"; // Para historial y descargas
-import paymentRoutes from "./routes/payment.routes.js";   // 👈 IMPORTANTE: Rutas de MP y Webhook
+import purchaseRoutes from "./routes/purchase.routes.js"; 
+import paymentRoutes from "./routes/payment.routes.js";   
 
 // =====================================================
 // 🧠 MIDDLEWARES / CONTROLLERS / SERVICES
@@ -56,56 +56,41 @@ app.use(
   })
 );
 
-// Seguridad y Logs
-app.use(helmet());
+// =====================================================
+// ⭐ SEGURIDAD Y LOGS (CORREGIDO PARA IMÁGENES LOCALES)
+// =====================================================
+// Helmet por defecto bloquea la carga de recursos de distintos orígenes (puertos).
+// Le indicamos explícitamente que permita cross-origin para que el Frontend (puerto 5173) 
+// pueda leer las fotos (puerto 4000).
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
 app.use(morgan("dev"));
 
 // ⚠️ IMPORTANTE: Parseo de JSON
-// Esto debe ir ANTES de las rutas para que req.body funcione
-// (incluso para el Webhook de Mercado Pago en esta integración básica)
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // =====================================================
 // ⭐ RUTAS API
 // =====================================================
-
-// 🔐 Autenticación
 app.use("/api/auth", authRoutes);
-
-// 👤 Usuarios (Configuración Face ID, Perfil)
 app.use("/api/users", userRoutes);
-
-// 📸 Imágenes
 app.use("/api/imagenes", imageRoutes);
-
-// 📁 Álbumes
 app.use("/api/albums", albumRoutes);
-
-// ⚙ Configuración admin
 app.use("/api/config", configRoutes);
-
-// 🛒 Carrito
 app.use("/api/carrito", cartRoutes);
-
-// 💳 Compras (Lógica interna: Historial, Descargas ZIP)
-// Aquí estará: /api/compras/public/download/:id (Link del correo)
 app.use("/api/compras", purchaseRoutes);
-
-// 💸 Pagos (Pasarela: Mercado Pago)
-// Aquí estará: /api/payment/create-order y /api/payment/webhook
-// Y también la prueba: /api/payment/test-email-simulado
 app.use("/api/payment", paymentRoutes); 
 
-// =====================================================
-// 🔐 Obtener usuario autenticado (Helper rápido)
-// =====================================================
 app.get("/api/auth/me", authMiddleware, authController.me);
 
 // =====================================================
-// ⭐ SERVIR UPLOADS LOCALES (TEMPORAL)
+// ⭐ SERVIR UPLOADS LOCALES (CORREGIDO PARA MULTER)
 // =====================================================
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+// Usamos process.cwd() porque la carpeta uploads está en la raíz de apps/api, no dentro de src
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // =====================================================
 // ⭐ HEALTH CHECK
@@ -121,14 +106,12 @@ app.get("/api/health", (_req, res) => {
 // =====================================================
 // ⭐ INICIAR SERVIDOR
 // =====================================================
-// Hacemos el callback async para esperar la carga de modelos IA
 app.listen(PORT, async () => {
   console.log(`\n==================================================`);
   console.log(`✔ API running on http://localhost:${PORT}`);
   console.log(`✔ Cloudinary conectado como: ${process.env.CLOUDINARY_CLOUD_NAME}`);
   
   try {
-    // Cargar Modelos de Reconocimiento Facial
     console.log("⏳ Cargando modelos de FaceAPI...");
     await faceService.loadModels();
     console.log("🤖 Modelos de IA cargados correctamente.");

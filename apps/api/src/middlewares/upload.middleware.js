@@ -2,28 +2,24 @@
 import multer from "multer";
 import path from "path";
 import os from "os";
+import fs from "fs"; // 👈 NUEVO: Necesario para crear la carpeta local
 
-// -------------------------------
-// CONFIGURACIÓN DE DISK STORAGE
-// -------------------------------
+// =========================================================
+// 1️⃣ CONFIGURACIÓN ORIGINAL (Para Álbumes / Cloudinary)
+// =========================================================
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Usamos la carpeta temporal del sistema operativo (más rápido y seguro)
+    // Usamos la carpeta temporal del sistema operativo
     cb(null, os.tmpdir());
   },
   filename: (req, file, cb) => {
-    // Generamos nombre único para evitar colisiones
     const unique = Date.now() + "_" + Math.round(Math.random() * 1e9);
     const ext = path.extname(file.originalname);
     cb(null, `${file.fieldname}-${unique}${ext}`);
   },
 });
 
-// -------------------------------
-// FILTRO DE ARCHIVOS (Solo Imágenes)
-// -------------------------------
 const fileFilter = (req, file, cb) => {
-  // Aceptamos jpg, jpeg, png, webp, gif
   if (file.mimetype.startsWith("image/")) {
     cb(null, true);
   } else {
@@ -31,27 +27,42 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// -------------------------------
-// CONFIGURACIÓN DE MULTER
-// -------------------------------
 const multerConfig = {
   storage: storage,
   fileFilter: fileFilter,
-  // Sin límite de tamaño de archivo (o puedes descomentar abajo para poner uno)
-  // limits: { fileSize: 10 * 1024 * 1024 }, // Ejemplo: 10MB
 };
 
-// -------------------------------
-// EXPORTS
-// -------------------------------
-
-// 🔹 Subida de una sola imagen (ej: Selfie)
-// ⚠️ IMPORTANTE: En el Frontend/Postman el campo debe llamarse "image"
+// 🔹 Subida de una sola imagen a Temp (ej: Cloudinary)
 export const uploadSingleImage = multer(multerConfig).single("image");
 
-// 🔹 Subida de múltiples imágenes (ej: Álbum)
-// ⚠️ IMPORTANTE: En el Frontend/Postman el campo debe llamarse "images"
-export const uploadMultipleImages = multer(multerConfig).array(
-  "images", 
-  200 // Máximo 200 archivos por subida
-);
+// 🔹 Subida de múltiples imágenes a Temp (ej: Álbum)
+export const uploadMultipleImages = multer(multerConfig).array("images", 200);
+
+
+// =========================================================
+// 2️⃣ NUEVA CONFIGURACIÓN LOCAL (Específica para Selfies)
+// =========================================================
+const localSelfieDir = path.join(process.cwd(), 'uploads/selfies');
+
+// Si la carpeta no existe, la creamos
+if (!fs.existsSync(localSelfieDir)) {
+  fs.mkdirSync(localSelfieDir, { recursive: true });
+}
+
+const selfieStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, localSelfieDir); // Aquí obligamos a que se guarde en nuestra carpeta pública
+  },
+  filename: (req, file, cb) => {
+    const userId = req.user?.idUsuario || req.user?.id || 'unknown';
+    const ext = path.extname(file.originalname);
+    cb(null, `selfie_${userId}_${Date.now()}${ext}`);
+  }
+});
+
+// 🔹 EXPORTAMOS EL MIDDLEWARE QUE BUSCA LAS RUTAS
+export const uploadSelfie = multer({ 
+  storage: selfieStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // Límite 5MB
+  fileFilter: fileFilter
+});
