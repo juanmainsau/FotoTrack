@@ -1,6 +1,6 @@
 // src/controllers/auth.controller.js
 import { userRepository } from "../repositories/user.repository.js";
-import { db } from "../config/db.js"; // 👈 CORREGIDO: Importación nombrada usando { db }
+import { db } from "../config/db.js";
 
 export const authController = {
   async me(req, res) {
@@ -19,9 +19,10 @@ export const authController = {
           correo: user.correo,
           nombre: user.nombre,
           apellido: user.apellido,
+          cuit: user.cuit, // 👈 NUEVO: Devolvemos el CUIT a la vista de perfil
           rol: user.rol,
           foto: user.foto,
-          foto_referencia: user.foto_referencia, // 👈 Devolvemos también la foto biométrica
+          foto_referencia: user.foto_referencia,
           estado: user.estado,
         },
       });
@@ -31,11 +32,11 @@ export const authController = {
     }
   },
 
-  // ⭐ NUEVO: Función para actualizar datos del perfil (Nombre)
+  // ⭐ NUEVO: Función para actualizar datos del perfil (Nombre y CUIT)
   async updateProfile(req, res) {
     try {
       const idUsuario = req.user?.idUsuario || req.user?.id;
-      const { nombre } = req.body;
+      const { nombre, cuit } = req.body; // 👈 Ahora atrapamos también el cuit
 
       if (!idUsuario) {
         return res.status(401).json({ ok: false, error: "Usuario no autenticado." });
@@ -45,9 +46,10 @@ export const authController = {
         return res.status(400).json({ ok: false, error: "El nombre debe tener al menos 3 caracteres." });
       }
 
+      // 👈 Actualizamos la consulta para guardar ambos campos (Nombre y CUIT)
       const [result] = await db.query(
-        "UPDATE usuarios SET nombre = ? WHERE idUsuario = ?", 
-        [nombre.trim(), idUsuario]
+        "UPDATE usuarios SET nombre = ?, cuit = ? WHERE idUsuario = ?", 
+        [nombre.trim(), cuit?.trim() || null, idUsuario]
       );
 
       if (result.affectedRows === 0) {
@@ -62,20 +64,17 @@ export const authController = {
     }
   },
 
-  // ⭐ NUEVO: Función para subir la selfie de reconocimiento facial
+  // Función para subir la selfie de reconocimiento facial
   async uploadSelfie(req, res) {
     try {
       const idUsuario = req.user?.idUsuario || req.user?.id;
 
-      // 1. Verificamos si Multer logró atrapar el archivo
       if (!req.file) {
         return res.status(400).json({ ok: false, error: "No se recibió ninguna imagen." });
       }
 
-      // 2. Construimos la URL pública (relativa) de la foto
       const photoUrl = `/uploads/selfies/${req.file.filename}`;
 
-      // 3. Actualizamos la base de datos en la nueva columna foto_referencia
       const [result] = await db.query(
         "UPDATE usuarios SET foto_referencia = ? WHERE idUsuario = ?", 
         [photoUrl, idUsuario]

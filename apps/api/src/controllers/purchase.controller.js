@@ -6,6 +6,40 @@ import { db } from "../config/db.js";
 export const purchaseController = {
 
   /**
+   * GET /api/compras/admin
+   * Devuelve todas las compras del sistema con el total calculado (Solo para Admin).
+   */
+  async getAllAdmin(req, res) {
+    try {
+      // 1. Realizamos la consulta con JOIN para traer datos del usuario
+      // y calculamos el TOTAL sumando los ítems de esa compra
+      const [ventas] = await db.query(`
+        SELECT 
+          c.idCompra, 
+          c.fecha, 
+          c.estadoPago, 
+          c.idTransaccionMP,
+          u.nombre AS nombreUsuario, 
+          u.correo,
+          COALESCE(SUM(ic.precioUnitario * ic.cantidad), 0) AS total
+        FROM compras c
+        JOIN usuarios u ON c.idUsuario = u.idUsuario
+        LEFT JOIN items_compra ic ON c.idCompra = ic.idCompra
+        GROUP BY c.idCompra
+        ORDER BY c.fecha DESC
+      `);
+
+      return res.json(ventas);
+    } catch (err) {
+      console.error("❌ Error en purchaseController.getAllAdmin:", err);
+      return res.status(500).json({
+        ok: false,
+        error: "No se pudo obtener el listado de ventas global",
+      });
+    }
+  },
+
+  /**
    * POST /api/compras
    * Crea una compra completa del usuario autenticado.
    */

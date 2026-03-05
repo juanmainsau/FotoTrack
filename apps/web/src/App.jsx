@@ -16,8 +16,8 @@ import { AlbumGalleryPage } from "./pages/AlbumGalleryPage";
 import MyPhotosPage from "./pages/MyPhotosPage.jsx";
 import CheckoutPage from "./pages/CheckoutPage.jsx";
 import { CartPage } from "./pages/CartPage.jsx";
-import UserProfilePage from "./pages/UserProfilePage.jsx"; // El menú principal del perfil
-import ProfilePage from "./pages/ProfilePage.jsx";         // 👈 NUEVO: La pantalla de datos personales
+import UserProfilePage from "./pages/UserProfilePage.jsx"; 
+import ProfilePage from "./pages/ProfilePage.jsx";        
 import MisComprasPage from "./pages/MisComprasPage.jsx";
 import { UserFaceConfigPage } from "./pages/UserFaceConfigPage";
 import SuccessPage from "./pages/SuccessPage.jsx"; 
@@ -27,6 +27,7 @@ import { AdminDashboardPage } from "./pages/AdminDashboardPage";
 import { AdminAlbumsPage } from "./pages/AdminAlbumsPage";
 import { AdminAlbumNewPage } from "./pages/AdminAlbumNewPage";
 import { AdminConfigPage } from "./pages/AdminConfigPage";
+import { AdminVentasPage } from "./pages/AdminVentasPage"; // 👈 NUEVA IMPORTACIÓN
 import AdminUsersPage from "./pages/AdminUsersPage.jsx";
 import AdminReportsPage from "./pages/AdminReportsPage.jsx";
 import AdminAuditPage from "./pages/AdminAuditPage.jsx";
@@ -61,13 +62,13 @@ export default function App() {
 
         {/* PERFIL Y SUB-SECCIONES */}
         <Route path="perfil" element={<UserProfilePage />} />
-        <Route path="perfil/info" element={<ProfilePage />} /> {/* 👈 NUEVA RUTA PARA TUS DATOS */}
+        <Route path="perfil/info" element={<ProfilePage />} />
         <Route path="mis-compras" element={<MisComprasPage />} />
         <Route path="configuracion-facial" element={<UserFaceConfigPage />} />
       </Route>
 
       {/* ======================== */}
-      {/* ADMIN          */}
+      {/* ADMIN                    */}
       {/* ======================== */}
       <Route
         path="/admin"
@@ -97,6 +98,18 @@ export default function App() {
           <AdminRoute>
             <AdminLayout>
               <AdminAlbumNewPage />
+            </AdminLayout>
+          </AdminRoute>
+        }
+      />
+
+      {/* 🚀 NUEVA RUTA: GESTIÓN DE VENTAS */}
+      <Route
+        path="/admin/ventas"
+        element={
+          <AdminRoute>
+            <AdminLayout>
+              <AdminVentasPage />
             </AdminLayout>
           </AdminRoute>
         }

@@ -1,3 +1,4 @@
+// src/pages/ProfilePage.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -9,6 +10,11 @@ export function ProfilePage() {
   // Estados para el Popup (Modal)
   const [showModal, setShowModal] = useState(false);
   const [editName, setEditName] = useState("");
+  
+  // 👈 NUEVOS ESTADOS SEPARADOS PARA EL DOCUMENTO
+  const [editDocType, setEditDocType] = useState("DNI"); 
+  const [editDocNumber, setEditDocNumber] = useState(""); 
+  
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -29,7 +35,18 @@ export function ProfilePage() {
       if (res.ok) {
         const userData = data.usuario || data.user || data;
         setUser(userData);
-        setEditName(userData.nombre); // Pre-cargamos el nombre para editarlo
+        setEditName(userData.nombre || ""); 
+        
+        // 🧠 LÓGICA DE DESEMPAQUETADO: "CUIT: 20-12345678-9" -> Tipo y Número
+        if (userData.cuit && userData.cuit.includes(": ")) {
+          const parts = userData.cuit.split(": ");
+          setEditDocType(parts[0]);
+          setEditDocNumber(parts[1]);
+        } else if (userData.cuit) {
+          // Fallback por si había algún dato viejo guardado sin formato
+          setEditDocType("DNI");
+          setEditDocNumber(userData.cuit);
+        }
       }
     } catch (err) {
       console.error("Error cargando perfil:", err);
@@ -38,6 +55,31 @@ export function ProfilePage() {
     }
   }
 
+  // 🎭 MÁSCARA DINÁMICA: Formatea el input en tiempo real según el tipo
+  const handleDocNumberChange = (e) => {
+    let value = e.target.value.replace(/\D/g, ""); // Borra todo lo que no sea número
+    
+    if (editDocType === "DNI") {
+      value = value.slice(0, 8); // DNI máximo 8 dígitos
+      setEditDocNumber(value);
+    } else {
+      // CUIT/CUIL máximo 11 dígitos y le inyectamos los guiones
+      value = value.slice(0, 11);
+      if (value.length > 2 && value.length <= 10) {
+        value = `${value.slice(0, 2)}-${value.slice(2)}`;
+      } else if (value.length > 10) {
+        value = `${value.slice(0, 2)}-${value.slice(2, 10)}-${value.slice(10)}`;
+      }
+      setEditDocNumber(value);
+    }
+  };
+
+  // 🧹 LIMPIEZA: Si cambia de DNI a CUIT, limpiamos para no dejar formatos cruzados
+  const handleDocTypeChange = (e) => {
+    setEditDocType(e.target.value);
+    setEditDocNumber(""); 
+  };
+
   // Función para guardar los cambios desde el Popup
   const handleSaveChanges = async (e) => {
     e.preventDefault();
@@ -45,19 +87,22 @@ export function ProfilePage() {
 
     try {
       const token = localStorage.getItem("fototrack-token");
+      
+      // 📦 EMPAQUETADO: Unimos el tipo y el número para guardarlo en la BD
+      const cuitCompleto = editDocNumber ? `${editDocType}: ${editDocNumber}` : null;
+
       const res = await fetch("http://localhost:4000/api/auth/update", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer " + token,
         },
-        body: JSON.stringify({ nombre: editName }),
+        body: JSON.stringify({ nombre: editName, cuit: cuitCompleto }),
       });
 
       if (res.ok) {
-        // Actualizamos el estado local para que se vea el cambio al instante
-        setUser({ ...user, nombre: editName });
-        setShowModal(false); // Cerramos el popup
+        setUser({ ...user, nombre: editName, cuit: cuitCompleto });
+        setShowModal(false); 
       } else {
         const data = await res.json();
         throw new Error(data.error || "No se pudo actualizar");
@@ -113,6 +158,7 @@ export function ProfilePage() {
 
           <hr className="text-muted opacity-25" />
 
+          {/* DATOS DEL USUARIO */}
           <div className="text-start mt-4">
             <h5 className="fw-semibold mb-3">Información de la Cuenta</h5>
             <div className="row g-3">
@@ -128,13 +174,23 @@ export function ProfilePage() {
                   <strong className="d-block text-truncate">{user.correo}</strong>
                 </div>
               </div>
+              
+              <div className="col-sm-12">
+                <div className="p-3 bg-light rounded-3 border">
+                  <small className="text-muted d-block mb-1">Documento Tributario (Facturación)</small>
+                  <strong className="d-block text-truncate">
+                    {/* Al mostrarlo, ya dirá "CUIT: 20-35123456-9" o "DNI: 35123456" automáticamente */}
+                    {user.cuit || <span className="text-muted fw-normal">No especificado</span>}
+                  </strong>
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="mt-5 d-flex justify-content-center">
              <button 
                 className="btn btn-primary px-5 py-2 fw-semibold shadow-sm" 
-                onClick={() => setShowModal(true)} // 👈 ABRE EL POPUP
+                onClick={() => setShowModal(true)} 
              >
                 ✏️ Editar Perfil
              </button>
@@ -167,6 +223,30 @@ export function ProfilePage() {
                       required
                       minLength="3"
                     />
+                  </div>
+
+                  {/* 👈 NUEVO: INPUT GROUP CON SELECT Y MÁSCARA */}
+                  <div className="mb-3">
+                    <label className="form-label text-muted small fw-semibold">Documento (Para Facturación)</label>
+                    <div className="input-group input-group-lg shadow-sm">
+                      <select 
+                        className="form-select bg-light text-dark fw-bold border-end-0" 
+                        style={{ maxWidth: "110px", cursor: "pointer" }}
+                        value={editDocType}
+                        onChange={handleDocTypeChange}
+                      >
+                        <option value="DNI">DNI</option>
+                        <option value="CUIT">CUIT</option>
+                        <option value="CUIL">CUIL</option>
+                      </select>
+                      <input 
+                        type="text" 
+                        className="form-control" 
+                        value={editDocNumber}
+                        onChange={handleDocNumberChange}
+                        placeholder={editDocType === "DNI" ? "Ej: 35123456" : "Ej: 20-35123456-9"}
+                      />
+                    </div>
                   </div>
                   
                   <div className="mb-4">

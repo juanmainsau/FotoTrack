@@ -16,10 +16,10 @@ export const configController = {
     }
   },
 
-  // 2. Guardar los sliders y switches (sin imagen)
+  // 2. Guardar los sliders, switches y textos del vendedor
   async updateConfig(req, res) {
     try {
-      // req.body trae { watermark_opacity: 50, ... }
+      // req.body ahora trae la watermark y los datos del vendedor
       const updated = await configRepository.updateConfig(req.body);
       res.json(updated);
     } catch (error) {
@@ -31,14 +31,11 @@ export const configController = {
   // 3. Subir la imagen de la marca de agua
   async uploadWatermark(req, res) {
     try {
-      // Multer deja el archivo en req.file
       if (!req.file) {
         return res.status(400).json({ error: "No se ha subido ningún archivo de imagen." });
       }
 
-      // a) Subir a Cloudinary
-      // Usamos un public_id fijo "watermark_global" para sobreescribir la anterior
-      // y no llenar tu cuenta de Cloudinary de basura si suben muchas pruebas.
+      // Usamos un public_id fijo para no llenar la cuenta de Cloudinary de basura
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "fototrack/system",
         public_id: "watermark_global", 
@@ -46,10 +43,10 @@ export const configController = {
         resource_type: "image"
       });
 
-      // b) Guardar la referencia (public_id) en la BD
+      // Guardar la referencia en la BD
       const config = await configRepository.updateWatermarkPublicId(result.public_id);
       
-      // c) Borrar el archivo temporal del servidor (limpieza)
+      // Limpieza del archivo temporal
       try {
         fs.unlinkSync(req.file.path);
       } catch (e) {

@@ -17,7 +17,7 @@ async function deleteAlbum(id) {
   });
 }
 
-// BADGES
+// BADGES - Componentes visuales para el estado y visibilidad
 function EstadoBadge({ estado }) {
   const base = "badge rounded-pill";
   const valor = (estado || "").toLowerCase();
@@ -25,15 +25,9 @@ function EstadoBadge({ estado }) {
   if (valor === "publicado" || valor === "activo") {
     return <span className={`${base} text-bg-success`}>Publicado</span>;
   }
-
   if (valor === "borrador") {
     return <span className={`${base} text-bg-secondary`}>Borrador</span>;
   }
-
-  if (valor === "archivado") {
-    return <span className={`${base} text-bg-warning`}>Archivado</span>;
-  }
-
   return <span className={base}>{estado}</span>;
 }
 
@@ -57,17 +51,19 @@ export function AdminAlbumsPage() {
   const [error, setError] = useState(null);
   const [albumEdit, setAlbumEdit] = useState(null);
 
+  // Carga inicial de datos desde el backend
   async function loadAlbums() {
     try {
       setLoading(true);
       const data = await fetchAlbums();
 
+      // Mapeo prolijo de los datos para que el Modal los entienda
       const formatted = data.map((a) => ({
         id: a.idAlbum,
         nombre: a.nombreEvento,
         codigo: a.codigoInterno ?? `ALB-${a.idAlbum}`,
         fechaEvento: new Date(a.fechaEvento).toLocaleDateString("es-AR"),
-        fechaEventoOriginal: a.fechaEvento,
+        fechaEventoOriginal: a.fechaEvento, // Clave para el input type="date"
         ubicacion: a.localizacion,
         descripcion: a.descripcion,
         estado: a.estado,
@@ -75,11 +71,7 @@ export function AdminAlbumsPage() {
         precioFoto: a.precioFoto,
         precioAlbum: a.precioAlbum,
         tags: a.tags,
-
-        // cantidad real de fotos que devolverá backend
         fotosTotales: a.totalFotos ?? 0,
-
-        // miniatura principal del álbum
         miniatura: a.miniatura || null,
       }));
 
@@ -96,27 +88,29 @@ export function AdminAlbumsPage() {
     loadAlbums();
   }, []);
 
+  // Función de BAJA Física (ABM)
   async function handleDelete(id) {
     const confirmar = window.confirm(
-      "¿Seguro que querés archivar este álbum? No se borran las fotos; solo se ocultará del catálogo público. Podés reactivarlo editando el álbum más adelante."
+      "¡ATENCIÓN! ¿Seguro que querés ELIMINAR este álbum de forma permanente? Se borrarán todos los datos asociados. Esta acción no se puede deshacer."
     );
     if (!confirmar) return;
 
     try {
       await deleteAlbum(id);
-      alert("Álbum archivado.");
-      loadAlbums();
+      alert("Álbum eliminado correctamente.");
+      loadAlbums(); // Recarga la tabla
     } catch (err) {
       console.error(err);
       alert("No se pudo eliminar el álbum.");
     }
   }
 
+  // Función de MODIFICACIÓN (ABM)
   async function handleUpdateAlbum(id, data) {
     try {
       const token = localStorage.getItem("fototrack-token");
 
-      await fetch(`http://localhost:4000/api/albums/${id}`, {
+      const res = await fetch(`http://localhost:4000/api/albums/${id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -125,9 +119,11 @@ export function AdminAlbumsPage() {
         body: JSON.stringify(data),
       });
 
+      if (!res.ok) throw new Error("Error en la respuesta del servidor");
+
       setAlbumEdit(null);
-      loadAlbums();
-      alert("Álbum actualizado.");
+      loadAlbums(); // Refresca la tabla con los nuevos datos
+      alert("Álbum actualizado correctamente.");
     } catch (err) {
       console.error(err);
       alert("No se pudo actualizar el álbum.");
@@ -136,29 +132,31 @@ export function AdminAlbumsPage() {
 
   return (
     <div className="p-4 p-md-5">
-      {/* HEADER */}
+      {/* HEADER SECCIÓN */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h2 className="fw-bold mb-1">Gestión de álbumes</h2>
           <p className="text-muted">
-            Administrá tus álbumes, estados, visibilidad y contenido.
+            ABM: Administrá tus álbumes, estados, visibilidad y contenido.
           </p>
         </div>
 
+        {/* Función de ALTA (ABM) */}
         <button
-          className="btn btn-ft btn-ft-solid btn-sm"
+          className="btn btn-primary btn-sm px-4 rounded-pill fw-bold"
           onClick={() => navigate("/admin/albums/nuevo")}
         >
           ➕ Crear álbum
         </button>
       </div>
 
+      {/* TABLA DE GESTIÓN */}
       <div className="card border-0 shadow-sm">
         <div className="card-body p-0">
-          {loading && <div className="p-3">Cargando álbumes...</div>}
+          {loading && <div className="p-4 text-center">Cargando álbumes...</div>}
 
           {!loading && error && (
-            <div className="p-3 text-danger">{error}</div>
+            <div className="p-4 text-center text-danger">{error}</div>
           )}
 
           {!loading && !error && (
@@ -166,14 +164,14 @@ export function AdminAlbumsPage() {
               <table className="table align-middle mb-0">
                 <thead className="table-light">
                   <tr>
-                    <th style={{ width: 80 }}>Miniatura</th>
+                    <th style={{ width: 80 }} className="ps-4">Miniatura</th>
                     <th>Nombre</th>
                     <th>Código</th>
                     <th>Ubicación / Fecha</th>
                     <th>Fotos</th>
                     <th>Estado</th>
                     <th>Visibilidad</th>
-                    <th className="text-center" style={{ width: 140 }}>
+                    <th className="text-center pe-4" style={{ width: 140 }}>
                       Acciones
                     </th>
                   </tr>
@@ -182,46 +180,44 @@ export function AdminAlbumsPage() {
                 <tbody>
                   {albums.map((album) => (
                     <tr key={album.id}>
-                      {/* MINIATURA */}
-                      <td>
+                      <td className="ps-4">
                         {album.miniatura ? (
                           <img
                             src={album.miniatura}
                             alt="miniatura"
                             style={{
-                              width: 60,
-                              height: 60,
+                              width: 50,
+                              height: 50,
                               objectFit: "cover",
-                              borderRadius: 6,
+                              borderRadius: 8,
                             }}
                           />
                         ) : (
                           <div
                             style={{
-                              width: 60,
-                              height: 60,
-                              background: "#eee",
-                              borderRadius: 6,
+                              width: 50,
+                              height: 50,
+                              background: "#f0f0f0",
+                              borderRadius: 8,
                             }}
                           ></div>
                         )}
                       </td>
 
-                      <td className="fw-semibold">{album.nombre}</td>
+                      <td className="fw-bold">{album.nombre}</td>
 
                       <td>
-                        <code>{album.codigo}</code>
+                        <span className="badge bg-light text-dark border font-monospace">
+                          {album.codigo}
+                        </span>
                       </td>
 
                       <td>
-                        {album.ubicacion}
-                        <br />
-                        <small className="text-muted">
-                          {album.fechaEvento}
-                        </small>
+                        <div className="small fw-semibold">{album.ubicacion}</div>
+                        <div className="small text-muted">{album.fechaEvento}</div>
                       </td>
 
-                      <td>{album.fotosTotales}</td>
+                      <td className="text-center fw-bold">{album.fotosTotales}</td>
 
                       <td>
                         <EstadoBadge estado={album.estado} />
@@ -231,22 +227,20 @@ export function AdminAlbumsPage() {
                         <VisibilidadBadge visibilidad={album.visibilidad} />
                       </td>
 
-                      <td>
+                      <td className="pe-4 text-center">
                         <div className="d-flex justify-content-center gap-2">
-                          {/* EDITAR */}
                           <button
                             className="btn btn-outline-primary btn-sm"
                             onClick={() => setAlbumEdit(album)}
-                            title="Editar"
+                            title="Editar Álbum"
                           >
                             ✏️
                           </button>
 
-                          {/* ARCHIVAR */}
                           <button
                             className="btn btn-outline-danger btn-sm"
                             onClick={() => handleDelete(album.id)}
-                            title="Archivar"
+                            title="Eliminar Álbum"
                           >
                             🗑️
                           </button>
@@ -257,11 +251,8 @@ export function AdminAlbumsPage() {
 
                   {albums.length === 0 && (
                     <tr>
-                      <td
-                        colSpan={8}
-                        className="text-center py-4 text-muted"
-                      >
-                        No hay álbumes cargados.
+                      <td colSpan={8} className="text-center py-5 text-muted">
+                        No hay álbumes cargados en el sistema.
                       </td>
                     </tr>
                   )}
@@ -272,7 +263,7 @@ export function AdminAlbumsPage() {
         </div>
       </div>
 
-      {/* MODAL EDICIÓN */}
+      {/* MODAL PARA MODIFICACIÓN (ABM) */}
       {albumEdit && (
         <AlbumEditModal
           album={albumEdit}

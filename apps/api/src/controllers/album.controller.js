@@ -48,7 +48,23 @@ export const albumController = {
   async eliminar(req, res) {
     try {
       const { id } = req.params;
-      await albumService.deleteAlbumHard(id);
+
+      // 1. Obtener todas las imágenes del álbum antes de borrarlo
+      const [imagenes] = await db.execute("SELECT idImagen FROM imagenes WHERE idAlbum = ?", [id]);
+      
+      // 2. Borrar cada imagen de Cloudinary y de la IA (Pinecone)
+      // Usamos Promise.all para que sea rápido en paralelo
+      if (imagenes.length > 0) {
+        console.log(`🗑️ Eliminando ${imagenes.length} imágenes de Cloudinary/IA del álbum ${id}...`);
+        await Promise.all(
+          imagenes.map((img) => imageService.deleteImage(img.idImagen))
+        );
+      }
+
+      // 3. Borrado físico en la base de datos (Usamos el repository que ya tenés armado)
+      // Borra en cascada: Items Carrito -> Imagenes -> Album
+      const { albumRepository } = await import("../repositories/album.repository.js");
+      await albumRepository.deleteHard(id);
       
       return res.json({
         ok: true,

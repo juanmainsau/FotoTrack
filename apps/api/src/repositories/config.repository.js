@@ -7,15 +7,16 @@ export const configRepository = {
   async getConfig() {
     const [rows] = await db.query(`SELECT * FROM parametros_sistema WHERE id = 1`);
     
-    // ✅ SEGURIDAD: Si la tabla está vacía, insertamos la fila 1 por defecto
+    // ✅ SEGURIDAD: Si la tabla está vacía, insertamos la fila 1 por defecto con todos los campos
     if (rows.length === 0) {
       await db.query(`
         INSERT INTO parametros_sistema 
-        (id, watermark_enabled, watermark_opacity, watermark_size, watermark_position, calidad_default)
-        VALUES (1, 0, 80, 0.3, 'south_east', 80)
+        (id, watermark_enabled, watermark_opacity, watermark_size, watermark_position, calidad_default, vendedor_nombre, vendedor_cuit, vendedor_direccion, vendedor_telefono, vendedor_email)
+        VALUES (1, 0, 80, 0.3, 'south_east', 80, 'Mi Negocio', '', '', '', '')
       `);
       // Llamamos de nuevo para devolver el objeto recién creado
-      return (await db.query(`SELECT * FROM parametros_sistema WHERE id = 1`))[0][0];
+      const [newRows] = await db.query(`SELECT * FROM parametros_sistema WHERE id = 1`);
+      return newRows[0];
     }
 
     return rows[0];
@@ -27,12 +28,19 @@ export const configRepository = {
       watermark_opacity,
       watermark_size,
       watermark_position,
-      calidad_default
+      calidad_default,
+      // 👇 Añadimos los campos del vendedor extraídos del body
+      vendedor_nombre = "",
+      vendedor_cuit = "",
+      vendedor_direccion = "",
+      vendedor_telefono = "",
+      vendedor_email = ""
     } = data;
 
     // Aseguramos que watermark_enabled sea 1 o 0 (booleano para SQL)
     const enabled = watermark_enabled ? 1 : 0;
 
+    // 👇 Actualizamos la query para guardar TODO
     await db.query(
       `UPDATE parametros_sistema 
        SET 
@@ -40,14 +48,24 @@ export const configRepository = {
          watermark_opacity = ?, 
          watermark_size = ?, 
          watermark_position = ?, 
-         calidad_default = ?
+         calidad_default = ?,
+         vendedor_nombre = ?,
+         vendedor_cuit = ?,
+         vendedor_direccion = ?,
+         vendedor_telefono = ?,
+         vendedor_email = ?
        WHERE id = 1`,
       [
         enabled,
         watermark_opacity,
         watermark_size,
         watermark_position,
-        calidad_default
+        calidad_default,
+        vendedor_nombre,
+        vendedor_cuit,
+        vendedor_direccion,
+        vendedor_telefono,
+        vendedor_email
       ]
     );
 

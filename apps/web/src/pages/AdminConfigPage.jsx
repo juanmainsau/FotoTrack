@@ -4,14 +4,22 @@ import { PageHeader } from "../components/PageHeader";
 
 export function AdminConfigPage() {
   const [config, setConfig] = useState({
+    // Config de Marca de Agua
     watermark_enabled: false,
     watermark_opacity: 80,
     watermark_position: "south_east",
     watermark_size: 0.3,
-    calidad_default: 80
+    calidad_default: 80,
+    // 🏢 Nuevos datos de Vendedor
+    vendedor_nombre: "",
+    vendedor_cuit: "",
+    vendedor_direccion: "",
+    vendedor_telefono: "",
+    vendedor_email: ""
   });
   
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(null); 
 
   // Imagen de fondo de muestra
@@ -34,7 +42,7 @@ export function AdminConfigPage() {
 
         if (data.watermark_public_id) {
           setPreview(
-            `https://res.cloudinary.com/${import.meta.env.VITE_CLOUDINARY_CLOUDNAME}/image/upload/${data.watermark_public_id}.png`
+            `https://res.cloudinary.com/deevgco8l/image/upload/${data.watermark_public_id}.png?t=${Date.now()}`
           );
         }
       } catch (err) {
@@ -62,7 +70,7 @@ export function AdminConfigPage() {
   };
 
   const handleUploadWatermark = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files;
     if (!file) return;
 
     setPreview(URL.createObjectURL(file)); 
@@ -85,7 +93,16 @@ export function AdminConfigPage() {
     }
   };
 
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setConfig(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (checked ? 1 : 0) : value
+    }));
+  };
+
   const handleSave = async () => {
+    setSaving(true);
     try {
       const res = await fetch("http://localhost:4000/api/config", {
         method: "PUT",
@@ -101,6 +118,8 @@ export function AdminConfigPage() {
     } catch (err) {
       console.error(err);
       alert("Error guardando configuración.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -108,26 +127,21 @@ export function AdminConfigPage() {
 
   return (
     <>
-      <PageHeader titulo="Configuración de Marca de Agua" />
+      <PageHeader titulo="Configuración del Sistema" />
 
       <div className="container-fluid p-4">
-        <div className="row g-4">
-          
-          {/* CAMBIO 1: GRIDS 50/50 
-              Usamos 'col-lg-6' en ambos lados para dividir la pantalla a la mitad en escritorio.
-          */}
-
-          {/* === COLUMNA IZQUIERDA: CONTROLES === */}
+        
+        {/* ========================================= */}
+        {/* SECCIÓN 1: MARCA DE AGUA (Tu código original) */}
+        {/* ========================================= */}
+        <div className="row g-4 mb-4">
           <div className="col-12 col-lg-6">
             <div className="card shadow-sm h-100 border-0">
               <div className="card-header bg-white border-bottom fw-bold py-3">
-                🎛️ Parámetros de configuración
+                🎛️ Parámetros de Marca de Agua
               </div>
               <div className="card-body p-4">
                 
-                {/* CAMBIO 2: SWITCH REDISEÑADO 
-                    Ahora es una fila flex limpia, integrada correctamente dentro del padding.
-                */}
                 <div className="d-flex align-items-center justify-content-between mb-4 p-3 border rounded bg-light">
                   <label className="form-check-label fw-bold mb-0 text-dark" htmlFor="wmSwitch">
                     Habilitar Marca de Agua
@@ -138,13 +152,13 @@ export function AdminConfigPage() {
                       style={{ width: "3em", height: "1.5em", cursor: "pointer" }}
                       type="checkbox"
                       id="wmSwitch"
+                      name="watermark_enabled"
                       checked={!!config.watermark_enabled}
-                      onChange={(e) => setConfig({ ...config, watermark_enabled: e.target.checked ? 1 : 0 })}
+                      onChange={handleChange}
                     />
                   </div>
                 </div>
 
-                {/* Upload */}
                 <div className="mb-4">
                   <label className="form-label fw-semibold">Subir Logo (PNG Transparente)</label>
                   <input
@@ -157,7 +171,6 @@ export function AdminConfigPage() {
 
                 <hr className="my-4 text-muted"/>
 
-                {/* Opacidad */}
                 <div className="mb-4">
                   <label className="form-label d-flex justify-content-between fw-semibold">
                     <span>Opacidad</span>
@@ -166,13 +179,13 @@ export function AdminConfigPage() {
                   <input
                     type="range"
                     className="form-range"
+                    name="watermark_opacity"
                     min="0" max="100" step="5"
                     value={config.watermark_opacity}
-                    onChange={(e) => setConfig({ ...config, watermark_opacity: Number(e.target.value) })}
+                    onChange={handleChange}
                   />
                 </div>
 
-                {/* Tamaño */}
                 <div className="mb-4">
                   <label className="form-label d-flex justify-content-between fw-semibold">
                     <span>Tamaño Relativo</span>
@@ -181,22 +194,23 @@ export function AdminConfigPage() {
                   <input
                     type="range"
                     className="form-range"
+                    name="watermark_size"
                     min="0.1" max="1.0" step="0.05"
                     value={config.watermark_size}
-                    onChange={(e) => setConfig({ ...config, watermark_size: Number(e.target.value) })}
+                    onChange={handleChange}
                   />
                   <div className="form-text mt-1">
                     Ajusta qué porcentaje del ancho de la foto ocupará el logo.
                   </div>
                 </div>
 
-                {/* Posición */}
                 <div className="mb-4">
                   <label className="form-label fw-semibold">Posición en la foto</label>
                   <select
                     className="form-select"
+                    name="watermark_position"
                     value={config.watermark_position}
-                    onChange={(e) => setConfig({ ...config, watermark_position: e.target.value })}
+                    onChange={handleChange}
                   >
                     <option value="north_west">↖️ Arriba Izquierda</option>
                     <option value="north">⬆️ Arriba Centro</option>
@@ -209,15 +223,10 @@ export function AdminConfigPage() {
                     <option value="south_east">↘️ Abajo Derecha</option>
                   </select>
                 </div>
-
-                <button className="btn btn-primary w-100 py-2 fw-bold mt-2" onClick={handleSave}>
-                  💾 Guardar Cambios
-                </button>
               </div>
             </div>
           </div>
 
-          {/* === COLUMNA DERECHA: PREVIEW === */}
           <div className="col-12 col-lg-6">
             <div className="card shadow-sm h-100 border-0">
               <div className="card-header bg-white border-bottom fw-bold d-flex justify-content-between align-items-center py-3">
@@ -225,14 +234,13 @@ export function AdminConfigPage() {
                 <span className="badge bg-info text-dark">Simulación</span>
               </div>
               
-              {/* Contenedor oscuro centrado */}
               <div className="card-body p-0 d-flex align-items-center justify-content-center bg-dark" style={{ minHeight: "500px" }}>
                 
                 <div style={{
                     position: 'relative',
                     width: '100%',
                     height: '100%',
-                    minHeight: '500px', // Aseguramos altura mínima
+                    minHeight: '500px',
                     backgroundImage: `url('${SAMPLE_BG}')`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
@@ -248,9 +256,9 @@ export function AdminConfigPage() {
                             alt="Watermark Preview"
                             style={{
                                 width: `${config.watermark_size * 100}%`,
-                                opacity: config.watermark_enabled ? (config.watermark_opacity / 100) : 0,
+                                opacity: config.watermark_opacity / 100,
                                 transition: 'all 0.2s ease',
-                                maxWidth: '400px', // Un poco más grande para pantallas grandes
+                                maxWidth: '400px', 
                                 filter: 'drop-shadow(0px 0px 4px rgba(0,0,0,0.6))'
                             }}
                         />
@@ -263,13 +271,67 @@ export function AdminConfigPage() {
 
                 </div>
               </div>
-              <div className="card-footer text-muted small bg-light">
+              <div className="card-footer text-muted small bg-light border-0">
                 * La vista previa utiliza una imagen de ejemplo. El resultado final se adaptará a las dimensiones reales de tus fotografías.
               </div>
             </div>
           </div>
-
         </div>
+
+        {/* ========================================= */}
+        {/* SECCIÓN 2: DATOS DEL VENDEDOR (NUEVO) */}
+        {/* ========================================= */}
+        <div className="row">
+          <div className="col-12">
+            <div className="card shadow-sm border-0">
+              <div className="card-header bg-dark text-white fw-bold py-3 border-0">
+                🏢 Datos para Emisión de Comprobantes
+              </div>
+              <div className="card-body p-4 bg-light">
+                <div className="alert alert-warning border-0 shadow-sm small">
+                  Estos datos son <strong>obligatorios</strong> para cumplir con la emisión de recibos/comprobantes de las ventas generadas en la plataforma.
+                </div>
+
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold small text-muted text-uppercase">Razón Social / Negocio</label>
+                    <input type="text" className="form-control" name="vendedor_nombre" placeholder="Ej: FotoTrack Studio" value={config.vendedor_nombre || ""} onChange={handleChange} />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold small text-muted text-uppercase">CUIT / Identificación</label>
+                    <input type="text" className="form-control" name="vendedor_cuit" placeholder="Ej: 20-12345678-9" value={config.vendedor_cuit || ""} onChange={handleChange} />
+                  </div>
+                  <div className="col-12">
+                    <label className="form-label fw-bold small text-muted text-uppercase">Dirección</label>
+                    <input type="text" className="form-control" name="vendedor_direccion" placeholder="Ej: San Martín 123, Misiones" value={config.vendedor_direccion || ""} onChange={handleChange} />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold small text-muted text-uppercase">Teléfono</label>
+                    <input type="text" className="form-control" name="vendedor_telefono" placeholder="+54 9 376..." value={config.vendedor_telefono || ""} onChange={handleChange} />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label fw-bold small text-muted text-uppercase">Email de Contacto</label>
+                    <input type="email" className="form-control" name="vendedor_email" placeholder="contacto@tuweb.com" value={config.vendedor_email || ""} onChange={handleChange} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================= */}
+        {/* BOTÓN DE GUARDADO GLOBAL */}
+        {/* ========================================= */}
+        <div className="d-flex justify-content-end mt-4">
+          <button 
+            className="btn btn-primary btn-lg px-5 fw-bold shadow-sm rounded-pill" 
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? "Guardando..." : "💾 Guardar Toda la Configuración"}
+          </button>
+        </div>
+
       </div>
     </>
   );

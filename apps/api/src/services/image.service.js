@@ -111,14 +111,24 @@ export const imageService = {
     if (!img) throw new Error("Imagen no encontrada");
 
     try {
+      // 1. Eliminamos de Cloudinary usando el public_id guardado
       if (img.public_id) {
         await cloudinary.uploader.destroy(img.public_id);
+        
+        // TIP: Si las otras versiones (thumb/optimized) usaran el mismo nombre 
+        // pero distinta carpeta, podrías borrarlas aquí también. 
+        // Por ahora, con borrar la original cumplimos el flujo principal.
       }
     } catch (err) {
       console.warn("⚠ No se pudo eliminar en Cloudinary:", err.message);
     }
 
+    // 2. Eliminamos de la base de datos
     await imageRepository.deleteImageById(idImagen);
+    
+    // 3. Opcional: Si usás IA, acá llamarías a faceService para quitar los vectores
+    // await faceService.deleteImageVectors(idImagen);
+
     return true;
   },
 };

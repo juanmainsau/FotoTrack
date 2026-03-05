@@ -9,7 +9,7 @@ export function AdminSidebar({ user }) {
 
   const isActive = (path) =>
     pathname === path || pathname.startsWith(path)
-      ? "fw-semibold text-primary"
+      ? "fw-semibold text-primary bg-light"
       : "text-body";
 
   const handleLogout = () => {
@@ -36,6 +36,7 @@ export function AdminSidebar({ user }) {
           left: 0,
           top: 0,
           backgroundColor: "#ffffff",
+          zIndex: 1000
         }}
       >
         {/* HEADER */}
@@ -47,69 +48,64 @@ export function AdminSidebar({ user }) {
         {/* NAV PRINCIPAL */}
         <div className="d-flex flex-column flex-grow-1 overflow-auto">
           <nav className="nav flex-column px-3 py-3 gap-1 small">
-            <Link to="/admin" className={`nav-link ${isActive("/admin")}`}>
+            <Link to="/admin" className={`nav-link rounded ${isActive("/admin")}`}>
               📊 Dashboard
             </Link>
 
             <Link
               to="/admin/albums"
-              className={`nav-link ${isActive("/admin/albums")}`}
+              className={`nav-link rounded ${isActive("/admin/albums")}`}
             >
-              📸 Álbumes
+              📸 Gestión de Álbumes
+            </Link>
+
+            {/* 💰 NUEVO: BOTÓN VENTAS */}
+            <Link
+              to="/admin/ventas"
+              className={`nav-link rounded ${isActive("/admin/ventas")}`}
+            >
+              💰 Listado de Ventas
             </Link>
 
             <Link
-              to="/admin/albums/nuevo"
-              className={`nav-link ${isActive("/admin/albums/nuevo")}`}
+              to="/admin/users"
+              className={`nav-link rounded ${isActive("/admin/users")}`}
             >
-              ➕ Crear álbum
+              👥 Gestión de Usuarios
             </Link>
 
-            {/* 🔧 NUEVO: BOTÓN CONFIGURACIÓN */}
             <Link
               to="/admin/config"
-              className={`nav-link ${isActive("/admin/config")}`}
+              className={`nav-link rounded ${isActive("/admin/config")}`}
             >
               ⚙️ Configuración
             </Link>
 
             <Link
-              to="/admin/users"
-              className={`nav-link ${isActive("/admin/users")}`}
-            >
-              👥 Gestión de usuarios
-            </Link>
-
-            <Link
               to="/admin/reports"
-              className={`nav-link ${isActive("/admin/reports")}`}
+              className={`nav-link rounded ${isActive("/admin/reports")}`}
             >
               📈 Reportes
             </Link>
 
             <Link
               to="/admin/audit"
-              className={`nav-link ${isActive("/admin/audit")}`}
+              className={`nav-link rounded ${isActive("/admin/audit")}`}
             >
-              🕵️ Auditoría del sistema
+              🕵️ Auditoría
             </Link>
 
             <hr className="my-2" />
 
-            <div className="small text-muted mb-1">Vista usuario</div>
+            <div className="small text-muted mb-1 ps-2">Acceso Rápido</div>
+
+            {/* CORRECCIÓN: Las rutas de usuario deben ir a /app/..., no /admin/app/... */}
 
             <Link
-              to="/admin/app/mainscreen"
-              className={`nav-link ${isActive("/admin/app/mainscreen")}`}
+              to="/app/albums"
+              className="nav-link text-body"
             >
-              🏠 Inicio
-            </Link>
-
-            <Link
-              to="/admin/app/albums"
-              className={`nav-link ${isActive("/admin/app/albums")}`}
-            >
-              📸 Explorar álbumes
+              🔍 Explorar como Usuario
             </Link>
           </nav>
         </div>
@@ -148,17 +144,16 @@ export function AdminSidebar({ user }) {
               </div>
             )}
 
-            <div className="d-flex flex-column">
-              <span className="small fw-semibold">{displayName}</span>
+            <div className="d-flex flex-column" style={{ maxWidth: "150px" }}>
+              <span className="small fw-semibold text-truncate">{displayName}</span>
               {email && (
-                <span className="small text-muted" style={{ fontSize: "0.75rem" }}>
+                <span className="small text-muted text-truncate" style={{ fontSize: "0.7rem" }}>
                   {email}
                 </span>
               )}
             </div>
           </div>
 
-          {/* BOTÓN LOGOUT */}
           <button
             className="p-0 bg-transparent border-0 text-danger"
             onClick={() => setShowConfirm(true)}
@@ -174,26 +169,26 @@ export function AdminSidebar({ user }) {
       {showConfirm && (
         <div
           className="modal fade show"
-          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.4)" }}
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 2000 }}
         >
           <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
+            <div className="modal-content border-0 shadow">
               <div className="modal-header">
-                <h5 className="modal-title">Confirmar cierre de sesión</h5>
+                <h5 className="modal-title fw-bold">Cerrar Sesión</h5>
                 <button
                   className="btn-close"
                   onClick={() => setShowConfirm(false)}
                 ></button>
               </div>
-
-              <div className="modal-body">¿Desea cerrar sesión?</div>
-
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowConfirm(false)}>
+              <div className="modal-body">
+                ¿Estás seguro de que deseas salir del panel de administración?
+              </div>
+              <div className="modal-footer border-0">
+                <button className="btn btn-light" onClick={() => setShowConfirm(false)}>
                   Cancelar
                 </button>
-                <button className="btn btn-danger" onClick={handleLogout}>
-                  Cerrar sesión
+                <button className="btn btn-danger px-4" onClick={handleLogout}>
+                  Salir ahora
                 </button>
               </div>
             </div>
