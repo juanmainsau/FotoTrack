@@ -93,6 +93,24 @@ export function AdminConfigPage() {
     }
   };
 
+  // 🎭 MÁSCARA DINÁMICA PARA EL CUIT DEL VENDEDOR
+  const handleCuitChange = (e) => {
+    let value = e.target.value.replace(/\D/g, ""); // Remueve letras y símbolos
+    value = value.slice(0, 11); // Limita a 11 dígitos numéricos
+    
+    // Inyecta los guiones
+    if (value.length > 2 && value.length <= 10) {
+      value = `${value.slice(0, 2)}-${value.slice(2)}`;
+    } else if (value.length > 10) {
+      value = `${value.slice(0, 2)}-${value.slice(2, 10)}-${value.slice(10)}`;
+    }
+    
+    setConfig(prev => ({
+      ...prev,
+      vendedor_cuit: value
+    }));
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setConfig(prev => ({
@@ -132,7 +150,7 @@ export function AdminConfigPage() {
       <div className="container-fluid p-4">
         
         {/* ========================================= */}
-        {/* SECCIÓN 1: MARCA DE AGUA (Tu código original) */}
+        {/* SECCIÓN 1: MARCA DE AGUA */}
         {/* ========================================= */}
         <div className="row g-4 mb-4">
           <div className="col-12 col-lg-6">
@@ -279,7 +297,7 @@ export function AdminConfigPage() {
         </div>
 
         {/* ========================================= */}
-        {/* SECCIÓN 2: DATOS DEL VENDEDOR (NUEVO) */}
+        {/* SECCIÓN 2: DATOS DEL VENDEDOR */}
         {/* ========================================= */}
         <div className="row">
           <div className="col-12">
@@ -297,20 +315,30 @@ export function AdminConfigPage() {
                     <label className="form-label fw-bold small text-muted text-uppercase">Razón Social / Negocio</label>
                     <input type="text" className="form-control" name="vendedor_nombre" placeholder="Ej: FotoTrack Studio" value={config.vendedor_nombre || ""} onChange={handleChange} />
                   </div>
+                  
+                  {/* 👇 INPUT NORMALIZADO CON MÁSCARA CUIT 👇 */}
                   <div className="col-md-6">
-                    <label className="form-label fw-bold small text-muted text-uppercase">CUIT / Identificación</label>
-                    <input type="text" className="form-control" name="vendedor_cuit" placeholder="Ej: 20-12345678-9" value={config.vendedor_cuit || ""} onChange={handleChange} />
+                    <label className="form-label fw-bold small text-muted text-uppercase">CUIT / Identificación Fiscal</label>
+                    <input 
+                      type="text" 
+                      className="form-control" 
+                      name="vendedor_cuit" 
+                      placeholder="Ej: 20-12345678-9" 
+                      value={config.vendedor_cuit || ""} 
+                      onChange={handleCuitChange} // Llama a la nueva función de máscara
+                    />
                   </div>
+
                   <div className="col-12">
-                    <label className="form-label fw-bold small text-muted text-uppercase">Dirección</label>
+                    <label className="form-label fw-bold small text-muted text-uppercase">Dirección Comercial</label>
                     <input type="text" className="form-control" name="vendedor_direccion" placeholder="Ej: San Martín 123, Misiones" value={config.vendedor_direccion || ""} onChange={handleChange} />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label fw-bold small text-muted text-uppercase">Teléfono</label>
+                    <label className="form-label fw-bold small text-muted text-uppercase">Teléfono de Contacto</label>
                     <input type="text" className="form-control" name="vendedor_telefono" placeholder="+54 9 376..." value={config.vendedor_telefono || ""} onChange={handleChange} />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label fw-bold small text-muted text-uppercase">Email de Contacto</label>
+                    <label className="form-label fw-bold small text-muted text-uppercase">Email de Contacto / Facturación</label>
                     <input type="email" className="form-control" name="vendedor_email" placeholder="contacto@tuweb.com" value={config.vendedor_email || ""} onChange={handleChange} />
                   </div>
                 </div>
