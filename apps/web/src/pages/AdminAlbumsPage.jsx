@@ -17,7 +17,7 @@ async function deleteAlbum(id) {
   });
 }
 
-// BADGES - Componentes visuales para el estado y visibilidad
+// BADGES - Componentes visuales para el estado
 function EstadoBadge({ estado }) {
   const base = "badge rounded-pill";
   const valor = (estado || "").toLowerCase();
@@ -31,18 +31,6 @@ function EstadoBadge({ estado }) {
   return <span className={base}>{estado}</span>;
 }
 
-function VisibilidadBadge({ visibilidad }) {
-  const base = "badge rounded-pill";
-  switch (visibilidad) {
-    case "Público":
-      return <span className={`${base} text-bg-primary`}>Público</span>;
-    case "Oculto":
-      return <span className={`${base} text-bg-dark`}>Oculto</span>;
-    default:
-      return <span className={base}>{visibilidad}</span>;
-  }
-}
-
 export function AdminAlbumsPage() {
   const navigate = useNavigate();
 
@@ -51,23 +39,21 @@ export function AdminAlbumsPage() {
   const [error, setError] = useState(null);
   const [albumEdit, setAlbumEdit] = useState(null);
 
-  // Carga inicial de datos desde el backend
   async function loadAlbums() {
     try {
       setLoading(true);
       const data = await fetchAlbums();
 
-      // Mapeo prolijo de los datos para que el Modal los entienda
       const formatted = data.map((a) => ({
         id: a.idAlbum,
         nombre: a.nombreEvento,
         codigo: a.codigoInterno ?? `ALB-${a.idAlbum}`,
         fechaEvento: new Date(a.fechaEvento).toLocaleDateString("es-AR"),
-        fechaEventoOriginal: a.fechaEvento, // Clave para el input type="date"
+        fechaEventoOriginal: a.fechaEvento,
         ubicacion: a.localizacion,
         descripcion: a.descripcion,
         estado: a.estado,
-        visibilidad: a.visibilidad,
+        visibilidad: a.visibilidad, // Mantenemos en memoria por si el BE lo pide
         precioFoto: a.precioFoto,
         precioAlbum: a.precioAlbum,
         tags: a.tags,
@@ -88,7 +74,6 @@ export function AdminAlbumsPage() {
     loadAlbums();
   }, []);
 
-  // Función de BAJA Física (ABM)
   async function handleDelete(id) {
     const confirmar = window.confirm(
       "¡ATENCIÓN! ¿Seguro que querés ELIMINAR este álbum de forma permanente? Se borrarán todos los datos asociados. Esta acción no se puede deshacer."
@@ -98,14 +83,13 @@ export function AdminAlbumsPage() {
     try {
       await deleteAlbum(id);
       alert("Álbum eliminado correctamente.");
-      loadAlbums(); // Recarga la tabla
+      loadAlbums(); 
     } catch (err) {
       console.error(err);
       alert("No se pudo eliminar el álbum.");
     }
   }
 
-  // Función de MODIFICACIÓN (ABM)
   async function handleUpdateAlbum(id, data) {
     try {
       const token = localStorage.getItem("fototrack-token");
@@ -122,7 +106,7 @@ export function AdminAlbumsPage() {
       if (!res.ok) throw new Error("Error en la respuesta del servidor");
 
       setAlbumEdit(null);
-      loadAlbums(); // Refresca la tabla con los nuevos datos
+      loadAlbums(); 
       alert("Álbum actualizado correctamente.");
     } catch (err) {
       console.error(err);
@@ -137,11 +121,10 @@ export function AdminAlbumsPage() {
         <div>
           <h2 className="fw-bold mb-1">Gestión de álbumes</h2>
           <p className="text-muted">
-            ABM: Administrá tus álbumes, estados, visibilidad y contenido.
+            ABM: Administrá tus álbumes, estados y contenido.
           </p>
         </div>
 
-        {/* Función de ALTA (ABM) */}
         <button
           className="btn btn-primary btn-sm px-4 rounded-pill fw-bold"
           onClick={() => navigate("/admin/albums/nuevo")}
@@ -164,13 +147,12 @@ export function AdminAlbumsPage() {
               <table className="table align-middle mb-0">
                 <thead className="table-light">
                   <tr>
-                    <th style={{ width: 80 }} className="ps-4">Miniatura</th>
+                    <th style={{ width: 80 }} className="ps-4 text-center">Miniatura</th>
                     <th>Nombre</th>
                     <th>Código</th>
                     <th>Ubicación / Fecha</th>
-                    <th>Fotos</th>
-                    <th>Estado</th>
-                    <th>Visibilidad</th>
+                    <th className="text-center">Fotos</th>
+                    <th className="text-center">Estado</th>
                     <th className="text-center pe-4" style={{ width: 140 }}>
                       Acciones
                     </th>
@@ -180,7 +162,7 @@ export function AdminAlbumsPage() {
                 <tbody>
                   {albums.map((album) => (
                     <tr key={album.id}>
-                      <td className="ps-4">
+                      <td className="ps-4 text-center">
                         {album.miniatura ? (
                           <img
                             src={album.miniatura}
@@ -199,6 +181,7 @@ export function AdminAlbumsPage() {
                               height: 50,
                               background: "#f0f0f0",
                               borderRadius: 8,
+                              display: "inline-block" // Para que centre bien con text-center
                             }}
                           ></div>
                         )}
@@ -219,12 +202,8 @@ export function AdminAlbumsPage() {
 
                       <td className="text-center fw-bold">{album.fotosTotales}</td>
 
-                      <td>
+                      <td className="text-center">
                         <EstadoBadge estado={album.estado} />
-                      </td>
-
-                      <td>
-                        <VisibilidadBadge visibilidad={album.visibilidad} />
                       </td>
 
                       <td className="pe-4 text-center">
@@ -251,7 +230,8 @@ export function AdminAlbumsPage() {
 
                   {albums.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="text-center py-5 text-muted">
+                      {/* ✅ FIX: colSpan reducido a 7 porque quitamos Visibilidad */}
+                      <td colSpan={7} className="text-center py-5 text-muted">
                         No hay álbumes cargados en el sistema.
                       </td>
                     </tr>

@@ -2,14 +2,11 @@
 import multer from "multer";
 import path from "path";
 import os from "os";
-import fs from "fs"; // 👈 NUEVO: Necesario para crear la carpeta local
+import fs from "fs";
 
-// =========================================================
-// 1️⃣ CONFIGURACIÓN ORIGINAL (Para Álbumes / Cloudinary)
-// =========================================================
+// 1️⃣ Configuración para Álbumes (Cloudinary / IA)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    // Usamos la carpeta temporal del sistema operativo
     cb(null, os.tmpdir());
   },
   filename: (req, file, cb) => {
@@ -27,31 +24,24 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const multerConfig = {
-  storage: storage,
-  fileFilter: fileFilter,
-};
+const multerConfig = { storage, fileFilter };
 
-// 🔹 Subida de una sola imagen a Temp (ej: Cloudinary)
-export const uploadSingleImage = multer(multerConfig).single("image");
+export const uploadSingleImage = multer(multerConfig).single("imagen");
 
-// 🔹 Subida de múltiples imágenes a Temp (ej: Álbum)
+// 📸 IMPORTANTE: "imagenes" para que coincida con el modal de edición
 export const uploadMultipleImages = multer(multerConfig).array("images", 200);
 
 
-// =========================================================
-// 2️⃣ NUEVA CONFIGURACIÓN LOCAL (Específica para Selfies)
-// =========================================================
+// 2️⃣ Configuración local para Selfies
 const localSelfieDir = path.join(process.cwd(), 'uploads/selfies');
 
-// Si la carpeta no existe, la creamos
 if (!fs.existsSync(localSelfieDir)) {
   fs.mkdirSync(localSelfieDir, { recursive: true });
 }
 
 const selfieStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, localSelfieDir); // Aquí obligamos a que se guarde en nuestra carpeta pública
+    cb(null, localSelfieDir);
   },
   filename: (req, file, cb) => {
     const userId = req.user?.idUsuario || req.user?.id || 'unknown';
@@ -60,9 +50,9 @@ const selfieStorage = multer.diskStorage({
   }
 });
 
-// 🔹 EXPORTAMOS EL MIDDLEWARE QUE BUSCA LAS RUTAS
+// Exportamos la instancia de multer para selfies (sin el .single)
 export const uploadSelfie = multer({ 
   storage: selfieStorage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // Límite 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: fileFilter
 });

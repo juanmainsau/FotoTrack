@@ -6,25 +6,37 @@ export function SuccessPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   
-  const paymentId = searchParams.get("payment_id");
+  // 🔍 TRIPLE CHEQUEO: Buscamos el ID en todas las variantes posibles de Mercado Pago
+  const paymentId = 
+    searchParams.get("payment_id") || 
+    searchParams.get("collection_id") || 
+    searchParams.get("merchant_order_id");
+
   const status = searchParams.get("collection_status") || searchParams.get("status");
 
   useEffect(() => {
+    // 📢 Log de depuración para ver qué llega exactamente en la URL (puedes quitarlo después)
+    console.log("🔍 Query Params recibidos:", Object.fromEntries(searchParams));
+
     if (status) {
       // 👇 1. GRITAMOS POR LA RADIO (Guardamos en LocalStorage)
       localStorage.setItem("fototrack_mensaje_pago", JSON.stringify({
         status: status,
         paymentId: paymentId,
-        tiempo: Date.now() // Para que siempre sea un mensaje nuevo
+        tiempo: Date.now()
       }));
     }
 
-    // 👇 2. ¿Somos el popup? Nos damos cuenta por el nombre que le pusimos ("PagoMP")
+    // 👇 2. Manejo de Popup vs Pestaña Principal
     if (window.name === "PagoMP" || window.opener) {
-      window.close(); // Nos auto-destruimos 💣
+      // Si somos popup, esperamos un breve momento para asegurar el localStorage y cerramos
+      const timer = setTimeout(() => {
+        window.close();
+      }, 600); 
+      return () => clearTimeout(timer);
     } else {
       // 👇 3. Somos la pestaña principal, ¡A CELEBRAR!
-      if (status === "approved") {
+      if (status === "approved" || status === "success") {
         confetti({
           particleCount: 150,
           spread: 70,
@@ -33,7 +45,7 @@ export function SuccessPage() {
         });
       }
     }
-  }, [status, paymentId]);
+  }, [status, paymentId, searchParams]);
 
   return (
     <div className="container d-flex flex-column align-items-center justify-content-center py-5" style={{ minHeight: "70vh" }}>
@@ -54,15 +66,21 @@ export function SuccessPage() {
           </p>
         </div>
 
-        <p className="text-muted mt-4 small">
-          ID de Transacción: <strong>{paymentId || "Procesando..."}</strong>
-        </p>
+        {/* 🆔 ID de Transacción Real con triple validación */}
+        <div className="mt-4">
+          <p className="text-muted mb-1 small text-uppercase fw-bold" style={{ letterSpacing: "1px" }}>
+            Comprobante de operación
+          </p>
+          <div className="badge bg-white text-dark border px-3 py-2 shadow-sm" style={{ fontSize: "0.9rem" }}>
+            #{paymentId || "Procesando ID..."}
+          </div>
+        </div>
 
         <div className="mt-5 d-flex gap-3 justify-content-center">
-          <button className="btn btn-outline-secondary px-4" onClick={() => navigate("/app/mainscreen")}>
+          <button className="btn btn-outline-secondary px-4 shadow-sm" onClick={() => navigate("/app/mainscreen")}>
             Volver al Inicio
           </button>
-          <button className="btn btn-primary px-4" onClick={() => navigate("/app/mis-compras")}>
+          <button className="btn btn-primary px-4 shadow-sm" onClick={() => navigate("/app/mis-compras")}>
             Ir a Mis Compras
           </button>
         </div>

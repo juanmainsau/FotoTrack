@@ -20,7 +20,7 @@ function generarToken(user) {
 
 /**
  * findOrCreateUser
- * Ahora respeta el rol proveniente de Firebase
+ * Ahora respeta el rol proveniente de Firebase e inserta auditoría.
  */
 async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, firebaseRole }) {
   // Buscar usuario en BD
@@ -42,7 +42,7 @@ async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, f
         nombre || "",
         apellido || "",
         correo,
-        foto,
+        foto || null,
         firebaseRole || "cliente",  // 👈 ahora toma el rol del token Firebase
       ]
     );
@@ -52,9 +52,24 @@ async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, f
       nombre: nombre || "",
       apellido: apellido || "",
       correo,
-      foto,
+      foto: foto || null,
       rol: firebaseRole || "cliente",
+      estado: 'activo'
     };
+
+    // 🛡️ REGISTRO DE AUDITORÍA AUTOMÁTICO
+    try {
+      // Ajustá "detalles" o "descripcion" según cómo se llame tu columna en la DB
+      await db.query(
+        `INSERT INTO auditoria (idUsuario, accion, detalles) 
+         VALUES (?, 'REGISTRO', 'Nuevo usuario registrado vía Google')`,
+        [result.insertId]
+      );
+      console.log(`✅ [Auditoría] Registro guardado para el usuario ID: ${result.insertId}`);
+    } catch (auditErr) {
+      console.error("⚠️ Error guardando auditoría de registro:", auditErr.message);
+    }
+
   } else {
     // Usuario EXISTE → actualizar datos y rol si cambió
     user = rows[0];

@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+// 1. Importaciones corregidas con los nombres de archivo y componentes correctos
 import { Step1DatosEvento } from "../components/CreateAlbumSteps/Step1DatosEvento";
-import { Step2ComercialEstado } from "../components/CreateAlbumSteps/Step2ComercialEstado";
-import { Step3Imagenes } from "../components/CreateAlbumSteps/Step3Imagenes";
+import { Step2Imagenes } from "../components/CreateAlbumSteps/Step2Imagenes";
+import { Step3ComercialEstado } from "../components/CreateAlbumSteps/Step3ComercialEstado";
 import { Step4Resumen } from "../components/CreateAlbumSteps/Step4Resumen";
 
 export function AdminAlbumNewPage() {
   const navigate = useNavigate();
-
   const [step, setStep] = useState(1);
 
   const [form, setForm] = useState({
@@ -46,7 +46,6 @@ export function AdminAlbumNewPage() {
     try {
       const token = localStorage.getItem("fototrack-token");
 
-      // Validaciones mínimas
       if (!form.nombreEvento || !form.fechaEvento || !form.localizacion) {
         setSubmitError("Faltan completar algunos datos obligatorios.");
         setSubmitting(false);
@@ -59,27 +58,19 @@ export function AdminAlbumNewPage() {
         return;
       }
 
-      // Construir FormData
       const formData = new FormData();
-      
-      // Si tu backend espera los datos del álbum como un JSON string en "metadata":
+      // Enviamos los datos del formulario como un string JSON
       formData.append("metadata", JSON.stringify(form));
       
-      // O si tu backend espera los campos sueltos (ajusta según tu controlador createAlbum):
-      // Object.keys(form).forEach(key => formData.append(key, form[key]));
-
-      // 👇 CORRECCIÓN AQUÍ: Usamos "images" (en inglés) para coincidir con el backend
+      // Adjuntamos las imágenes
       imagenes.forEach((file) => {
         formData.append("images", file); 
       });
 
-      // Enviar al backend
-      // Asegúrate de que esta ruta '/api/albums/complete' use el middleware uploadMultipleImages
       const res = await fetch("http://localhost:4000/api/albums/complete", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
-          // No poner 'Content-Type': 'multipart/form-data', el navegador lo pone solo
         },
         body: formData,
       });
@@ -91,9 +82,7 @@ export function AdminAlbumNewPage() {
       }
 
       const data = await res.json(); 
-      // { success: true, idAlbum, codigoInterno }
 
-      // Abrir modal de éxito
       setModalSuccess({
         idAlbum: data.idAlbum,
         codigoInterno: data.codigoInterno,
@@ -115,7 +104,9 @@ export function AdminAlbumNewPage() {
         <p className="text-muted mb-0">Paso {step} de 4</p>
       </div>
 
-      {/* PASOS */}
+      {/* FLUJO DE PASOS REORDENADO */}
+      
+      {/* PASO 1: DATOS BÁSICOS */}
       {step === 1 && (
         <Step1DatosEvento
           form={form}
@@ -124,17 +115,9 @@ export function AdminAlbumNewPage() {
         />
       )}
 
+      {/* PASO 2: CARGA DE IMÁGENES (Ahora es el 2) */}
       {step === 2 && (
-        <Step2ComercialEstado
-          form={form}
-          setForm={setForm}
-          next={next}
-          back={back}
-        />
-      )}
-
-      {step === 3 && (
-        <Step3Imagenes
+        <Step2Imagenes
           imagenes={imagenes}
           setImagenes={setImagenes}
           next={next}
@@ -142,6 +125,18 @@ export function AdminAlbumNewPage() {
         />
       )}
 
+      {/* PASO 3: CONFIGURACIÓN COMERCIAL (Recibe 'imagenes' para calcular precio) */}
+      {step === 3 && (
+        <Step3ComercialEstado
+          form={form}
+          setForm={setForm}
+          imagenes={imagenes}
+          next={next}
+          back={back}
+        />
+      )}
+
+      {/* PASO 4: RESUMEN FINAL */}
       {step === 4 && (
         <Step4Resumen
           form={form}
@@ -153,53 +148,37 @@ export function AdminAlbumNewPage() {
         />
       )}
 
-      {/* MODAL DE ÉXITO */}
+      {/* MODAL DE ÉXITO (Se mantiene igual) */}
       {modalSuccess && (
         <div
           className="modal fade show"
           style={{
             display: "block",
             background: "rgba(0,0,0,0.4)",
+            zIndex: 1050
           }}
         >
           <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              
-              <div className="modal-header">
-                <h5 className="modal-title">Álbum creado correctamente</h5>
+            <div className="modal-content border-0 shadow">
+              <div className="modal-header bg-success text-white">
+                <h5 className="modal-title">¡Álbum creado!</h5>
               </div>
-
-              <div className="modal-body">
-                <p className="mb-2">
-                  El álbum <strong>{modalSuccess.codigoInterno}</strong> se creó exitosamente.
-                </p>
-
-                <p className="text-muted small mb-0">
-                  ID interno: {modalSuccess.idAlbum}
-                </p>
+              <div className="modal-body p-4">
+                <p>El álbum <strong>{modalSuccess.codigoInterno}</strong> se creó exitosamente.</p>
+                <p className="text-muted small">ID interno: {modalSuccess.idAlbum}</p>
               </div>
-
               <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => navigate("/admin/albums")}
-                >
+                <button className="btn btn-secondary" onClick={() => navigate("/admin/albums")}>
                   Volver al listado
                 </button>
-
-                <button
-                  className="btn btn-primary"
-                  onClick={() => navigate(`/admin/albums/${modalSuccess.idAlbum}`)}
-                >
+                <button className="btn btn-primary" onClick={() => navigate(`/admin/albums/${modalSuccess.idAlbum}`)}>
                   Ver álbum
                 </button>
               </div>
-
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

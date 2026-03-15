@@ -5,7 +5,7 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
   // AFIP usa formato: Punto de Venta (4) - Número (8). Ej: 0001-00000024
   const numeroComprobante = `0001-${String(venta.idCompra).padStart(8, '0')}`;
   
-  // 🛠️ FIX 2: Soportar tanto fechaCompra (Usuario) como fecha (Admin)
+  // Soportar tanto fechaCompra (Usuario) como fecha (Admin)
   const fechaCruda = venta.fechaCompra || venta.fecha;
   const fechaEmision = fechaCruda ? new Date(fechaCruda).toLocaleDateString("es-AR") : "Fecha no disponible";
 
@@ -15,7 +15,7 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
       <div className="modal-backdrop fade show d-print-none" onClick={onClose} style={{ zIndex: 1040 }}></div>
 
       <div className="modal fade show d-block" tabIndex="-1" style={{ zIndex: 1050 }}>
-        {/* 🛠️ FIX 1: d-print-none en los bordes del modal para que no afecten la impresión */}
+        {/* d-print-none en los bordes del modal para que no afecten la impresión */}
         <div className="modal-dialog modal-lg modal-dialog-centered print-dialog-reset">
           <div className="modal-content shadow-lg border-0 bg-transparent print-content-reset">
             
@@ -42,7 +42,7 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
                 border: "1px solid #ccc"
               }}
             >
-              {/* --- 1. CABECERA ESTILO AFIP (FIX 3: Flexbox en lugar de Absolute) --- */}
+              {/* --- 1. CABECERA ESTILO AFIP --- */}
               <div className="d-flex justify-content-between align-items-start border-bottom border-2 border-dark pb-3 mb-3">
                 
                 {/* Izquierda (Vendedor) */}
@@ -82,8 +82,12 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
               {/* --- 2. DATOS DEL CLIENTE --- */}
               <div className="row mb-4 border border-dark rounded p-2 mx-0 bg-light">
                 <div className="col-7">
-                  <div className="small">
+                  <div className="small text-truncate">
                     <strong>Nombre / Razón Social:</strong> {venta.nombreUsuario || "Consumidor Final"}
+                  </div>
+                  {/* 👈 NUEVO: Documento del cliente inyectado */}
+                  <div className="small mt-1 text-truncate">
+                    <strong>Documento:</strong> {venta.cuitCliente || "No especificado"}
                   </div>
                   <div className="small mt-1">
                     <strong>Condición frente al IVA:</strong> Consumidor Final
@@ -113,18 +117,20 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
                   <tr>
                     <td className="text-center">1</td>
                     <td>Adquisición de fotografías digitales (Ref. Compra #{venta.idCompra})</td>
-                    <td className="text-end">${venta.total?.toLocaleString('es-AR')}</td>
-                    <td className="text-end fw-semibold">${venta.total?.toLocaleString('es-AR')}</td>
+                    {/* 👈 FIX: Casteo a Number para forzar el formato local */}
+                    <td className="text-end">${Number(venta.total).toLocaleString('es-AR')}</td>
+                    <td className="text-end fw-semibold">${Number(venta.total).toLocaleString('es-AR')}</td>
                   </tr>
                 </tbody>
               </table>
 
-              {/* --- 4. TOTALES (FIX 4: Más espacio para el total) --- */}
+              {/* --- 4. TOTALES --- */}
               <div className="row justify-content-end mt-4">
                 <div className="col-6 col-md-5">
                   <div className="d-flex justify-content-between align-items-center border-top border-dark border-2 pt-2 fs-5">
                     <span className="fw-bold">Importe Total:</span>
-                    <span className="fw-bold">${venta.total?.toLocaleString('es-AR')}</span>
+                    {/* 👈 FIX: Casteo a Number para forzar el formato local */}
+                    <span className="fw-bold">${Number(venta.total).toLocaleString('es-AR')}</span>
                   </div>
                 </div>
               </div>

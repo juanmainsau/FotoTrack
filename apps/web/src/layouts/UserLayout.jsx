@@ -13,7 +13,7 @@ export function UserLayout() {
     async function loadUser() {
       try {
         const token = localStorage.getItem("fototrack-token");
-        if (!token) return;
+        if (!token) return; // Si no hay token, el layout de usuario igual carga (invitado)
 
         const res = await axios.get("http://localhost:4000/api/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
@@ -24,6 +24,8 @@ export function UserLayout() {
         }
       } catch (err) {
         console.error("Error cargando usuario (USER):", err);
+        // Opcional: si el token expiró, lo limpiamos
+        // localStorage.removeItem("fototrack-token");
       }
     }
     loadUser();
@@ -46,7 +48,7 @@ export function UserLayout() {
         <Outlet context={{ user }} />
       </main>
 
-      {/* 🛠️ BOTÓN FLOTANTE INTELIGENTE CORREGIDO */}
+      {/* BOTÓN FLOTANTE INTELIGENTE */}
       {isAdmin && (
         <button
           onClick={() => navigate("/admin")}
@@ -54,46 +56,20 @@ export function UserLayout() {
           onMouseLeave={() => setIsHovered(false)}
           className="btn btn-dark shadow-lg d-flex align-items-center p-0 border-primary"
           style={{
-            position: "fixed",
-            bottom: "30px",
-            right: "30px",
-            zIndex: 2000,
-            borderRadius: "50px",
-            width: isHovered ? "210px" : "56px",
-            height: "56px",
-            borderWidth: "2px",
-            transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
-            overflow: "hidden",
-            whiteSpace: "nowrap"
+            position: "fixed", bottom: "30px", right: "30px", zIndex: 2000,
+            borderRadius: "50px", width: isHovered ? "210px" : "56px", height: "56px",
+            borderWidth: "2px", transition: "all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+            overflow: "hidden", whiteSpace: "nowrap"
           }}
         >
-          {/* Contenedor del ícono:
-            Le damos un ancho fijo de 52px (56px del botón - 4px de los bordes).
-            Esto asegura que el ícono esté SIEMPRE centrado en el modo círculo.
-          */}
-          <div 
-            className="d-flex align-items-center justify-content-center"
-            style={{ 
-              width: "52px", 
-              minWidth: "52px",
-              height: "100%"
-            }}
-          >
+          <div className="d-flex align-items-center justify-content-center" style={{ width: "52px", minWidth: "52px", height: "100%" }}>
             <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>🛠️</span>
           </div>
-
-          {/* Texto: 
-            Le agregamos un pequeño desplazamiento (transform) para que 
-            "deslice" hacia adentro cuando aparece.
-          */}
           <span style={{
             opacity: isHovered ? 1 : 0,
             transform: isHovered ? "translateX(0)" : "translateX(-10px)",
-            transition: "all 0.3s ease",
-            fontSize: "0.95rem",
-            fontWeight: "bold",
-            pointerEvents: "none",
-            paddingRight: "20px"
+            transition: "all 0.3s ease", fontSize: "0.95rem", fontWeight: "bold",
+            pointerEvents: "none", paddingRight: "20px"
           }}>
             Panel de Control
           </span>

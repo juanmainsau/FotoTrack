@@ -2,9 +2,9 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { AdminSidebar } from "../components/AdminSidebar";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Outlet } from "react-router-dom"; // 👈 Agregamos Outlet
 
-export function AdminLayout({ children }) {
+export function AdminLayout() { // 👈 Quitamos children
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
@@ -20,7 +20,6 @@ export function AdminLayout({ children }) {
 
         if (!res.data?.ok) return navigate("/");
         
-        // Si no es admin, lo mandamos a la pantalla de usuario
         if (res.data.user.rol !== "admin") return navigate("/app/mainscreen");
 
         setUser(res.data.user);
@@ -34,26 +33,22 @@ export function AdminLayout({ children }) {
   }, [navigate]);
 
   return (
-    // 1. Contenedor Base: Fondo gris y altura mínima. 
-    // IMPORTANTE: No usamos d-flex aquí para evitar conflictos con el fixed sidebar.
     <div style={{ minHeight: "100vh", backgroundColor: "#f8f9fa", position: "relative" }}>
       
-      {/* 2. Sidebar Fijo */}
-      {/* El componente AdminSidebar ya tiene position: fixed y width: 260px */}
       <AdminSidebar user={user} />
 
-      {/* 3. Contenido Principal */}
       <main
         style={{
-          marginLeft: "260px", // Empujamos el contenido para no tapar la sidebar
-          width: "auto",       // 'auto' hace que ocupe todo el ancho restante disponible
-          minHeight: "100vh",  // Asegura que el área de contenido cubra la altura
-          overflowX: "hidden", // Evita scroll horizontal indeseado
-          display: "block"     // Aseguramos comportamiento de bloque
+          marginLeft: "260px", 
+          width: "auto",      
+          minHeight: "100vh",  
+          overflowX: "hidden", 
+          display: "block"     
         }}
       >
-        {/* Renderizamos los hijos directamente */}
-        {children}
+        {/* 🚀 EL CAMBIO MÁGICO: Ahora usamos Outlet */}
+        {/* Pasamos el user por context por si alguna sub-página lo necesita */}
+        <Outlet context={{ user }} /> 
       </main>
     </div>
   );

@@ -1,11 +1,10 @@
-// apps/api/src/controllers/config.controller.js
 import { configRepository } from "../repositories/config.repository.js";
+import { db } from "../config/db.js"; 
 import cloudinary from "../config/cloudinary.js";
 import fs from "fs";
 
 export const configController = {
   
-  // 1. Obtener la configuración al cargar la página
   async getConfig(req, res) {
     try {
       const config = await configRepository.getConfig();
@@ -16,10 +15,9 @@ export const configController = {
     }
   },
 
-  // 2. Guardar los sliders, switches y textos del vendedor
   async updateConfig(req, res) {
     try {
-      // req.body ahora trae la watermark y los datos del vendedor
+      // 💡 Asegúrate que configRepository.updateConfig mapee bien precio_foto_default
       const updated = await configRepository.updateConfig(req.body);
       res.json(updated);
     } catch (error) {
@@ -28,14 +26,12 @@ export const configController = {
     }
   },
 
-  // 3. Subir la imagen de la marca de agua
   async uploadWatermark(req, res) {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No se ha subido ningún archivo de imagen." });
       }
 
-      // Usamos un public_id fijo para no llenar la cuenta de Cloudinary de basura
       const result = await cloudinary.uploader.upload(req.file.path, {
         folder: "fototrack/system",
         public_id: "watermark_global", 
@@ -43,12 +39,12 @@ export const configController = {
         resource_type: "image"
       });
 
-      // Guardar la referencia en la BD
       const config = await configRepository.updateWatermarkPublicId(result.public_id);
       
-      // Limpieza del archivo temporal
       try {
-        fs.unlinkSync(req.file.path);
+        if (fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+        }
       } catch (e) {
         console.warn("No se pudo borrar archivo temporal:", e);
       }
@@ -57,6 +53,32 @@ export const configController = {
     } catch (error) {
       console.error("Error subiendo watermark:", error);
       res.status(500).json({ error: "Error al procesar la imagen de marca de agua" });
+    }
+  },
+
+  // 💰 Obtener precios por defecto para el Front (Create Album)
+  async getGlobalPrices(req, res) {
+    try {
+      // 1. Extraemos directamente el primer registro del array
+      const [rows] = await db.query("SELECT precio_foto_default, precio_album_default FROM parametros_sistema LIMIT 1");
+      
+      if (!rows || rows.length === 0) {
+        return res.status(404).json({ error: "No hay parámetros configurados" });
+      }
+
+      // 2. IMPORTANTE: Enviamos el nombre de campo exacto que espera el Frontend (precio_foto_default)
+      // Usamos rows[0] porque la consulta devuelve un array de resultados
+      const config = rows[0];
+      
+      res.json({ 
+        ok: true, 
+        precio_foto_default: config.precio_foto_default,
+        precio_album_default: config.precio_album_default 
+      });
+
+    } catch (error) {
+      console.error("Error en getGlobalPrices:", error);
+      res.status(500).json({ error: "Error al obtener precios" });
     }
   }
 };

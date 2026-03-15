@@ -30,8 +30,8 @@ export const webhookController = {
         const payment = new Payment(client);
         const paymentData = await payment.get({ id: paymentId });
         
-        // Extraemos todo lo que necesitamos, incluyendo el monto total
-        const { status, status_detail, metadata, additional_info, transaction_amount } = paymentData;
+        // Extraemos todo lo que necesitamos
+        const { status, metadata, additional_info } = paymentData;
 
         console.log(`💳 Estado: ${status.toUpperCase()} | Email en Metadata: ${metadata?.email || 'NO ENCONTRADO'}`);
 
@@ -51,34 +51,38 @@ export const webhookController = {
           // 💾 MAGIA DE LA BASE DE DATOS
           // ==========================================
           try {
-             // 👇 FRENO ANTI-DUPLICADOS: Revisamos si ya existe
-             const [compraPrevia] = await db.query("SELECT idCompra FROM compras WHERE idTransaccionMP = ?", [paymentId]);
+            // 👇 1. FRENO ANTI-DUPLICADOS: Revisamos si ya existe antes de hacer nada
+            const [compraPrevia] = await db.query(
+              "SELECT idCompra FROM compras WHERE idTransaccionMP = ?", 
+              [paymentId]
+            );
              
-             if (compraPrevia.length > 0) {
-                 console.log(`⚠️ La compra ${paymentId} ya estaba registrada. Ignorando duplicado de MP.`);
-                 return res.sendStatus(200); 
-             }
+            if (compraPrevia.length > 0) {
+              console.log(`⚠️ La compra ${paymentId} ya estaba registrada. Ignorando duplicado.`);
+              return res.sendStatus(200); 
+            }
 
-             if (!metadata?.carrito_id) {
-                 console.warn("⚠️ Advertencia: No vino carrito_id en la metadata. El carrito podría no vaciarse.");
-             }
+            if (!metadata?.carrito_id) {
+              console.warn("⚠️ Advertencia: No vino carrito_id en la metadata.");
+            }
 
-             const resultBD = await purchaseService.createPurchase({
-                idUsuario: metadata.user_id,
-                idCarrito: metadata.carrito_id, 
-                idMetodoPago: 1 
-             });
+            // 👇 2. CREACIÓN ATÓMICA: Enviamos el ID de MP de entrada
+            // Para que esto funcione, el purchaseService.createPurchase debe recibirlo y hacer el INSERT con él
+            const resultBD = await purchaseService.createPurchase({
+              idUsuario: metadata.user_id,
+              idCarrito: metadata.carrito_id, 
+              idMetodoPago: 1,
+              idTransaccionMP: paymentId // 👈 SE LO PASAMOS AQUÍ
+            });
 
-             if (resultBD.ok) {
-                // 👇 ESTA ES LA PIEZA FALTANTE: Enlazamos el ID de MP a tu tabla para que el Zip funcione
-                await db.query(
-                  "UPDATE compras SET idTransaccionMP = ?, estadoPago = 'approved' WHERE idCompra = ?", 
-                  [paymentId, resultBD.idCompra]
-                );
-                console.log(`💾 ¡ÉXITO! Compra ${resultBD.idCompra} guardada y enlazada con MP ID: ${paymentId}`);
-             } else {
-                console.error(`❌ Error interno guardando la compra: ${resultBD.error}`);
-             }
+            if (resultBD.ok) {
+              // Ya no hace falta el UPDATE manual aquí porque el service ya lo insertó
+              console.log(`💾 ¡ÉXITO! Compra ${resultBD.idCompra} guardada con MP ID: ${paymentId}`);
+            } else {
+              console.error(`❌ Error interno guardando la compra: ${resultBD.error}`);
+              // Si el error es por "Duplicate entry", el service debería manejarlo o nosotros ignorarlo
+              return res.sendStatus(200);
+            }
 
           } catch (dbError) {
             console.error("❌ Excepción no controlada al guardar en BD:", dbError);
@@ -98,13 +102,13 @@ export const webhookController = {
           if (enviado) {
             console.log("🚀 ¡CORREO ENVIADO CON ÉXITO!");
           } else {
-            console.error("⚠️ El servicio de email devolvió false.");
+            console.error("⚠️ El servicio de email falló.");
           }
         } else {
           console.log(`ℹ️ El pago no está aprobado todavía (Estado: ${status}).`);
         }
       } else {
-        console.log("ignorado: No es una notificación de pago (payment).");
+        console.log("ignorado: No es una notificación de pago.");
       }
 
       res.sendStatus(200);

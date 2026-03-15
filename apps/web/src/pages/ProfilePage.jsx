@@ -7,14 +7,10 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Estados para el Popup (Modal)
   const [showModal, setShowModal] = useState(false);
   const [editName, setEditName] = useState("");
-  
-  // 👈 NUEVOS ESTADOS SEPARADOS PARA EL DOCUMENTO
   const [editDocType, setEditDocType] = useState("DNI"); 
   const [editDocNumber, setEditDocNumber] = useState(""); 
-  
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -37,13 +33,12 @@ export function ProfilePage() {
         setUser(userData);
         setEditName(userData.nombre || ""); 
         
-        // 🧠 LÓGICA DE DESEMPAQUETADO: "CUIT: 20-12345678-9" -> Tipo y Número
+        // 🔧 CORRECCIÓN: Usar índices y para separar los datos
         if (userData.cuit && userData.cuit.includes(": ")) {
           const parts = userData.cuit.split(": ");
-          setEditDocType(parts[0]);
-          setEditDocNumber(parts[1]);
+          setEditDocType(parts);    // Ejemplo: "CUIT"
+          setEditDocNumber(parts);  // Ejemplo: "20-12345678-9"
         } else if (userData.cuit) {
-          // Fallback por si había algún dato viejo guardado sin formato
           setEditDocType("DNI");
           setEditDocNumber(userData.cuit);
         }
@@ -55,15 +50,42 @@ export function ProfilePage() {
     }
   }
 
-  // 🎭 MÁSCARA DINÁMICA: Formatea el input en tiempo real según el tipo
+  // 🗑️ FUNCIÓN PARA ELIMINAR CUENTA (AUTOGESTIÓN)
+  const handleDeleteAccount = async () => {
+    const confirmacion = window.confirm(
+      "⚠️ ¿ESTÁS SEGURO? Esta acción es irreversible. Se borrarán tus datos de acceso y perderás el historial de tus fotos compradas. ¿Deseas continuar?"
+    );
+
+    if (!confirmacion) return;
+
+    try {
+      const token = localStorage.getItem("fototrack-token");
+      
+      // 🚀 CAMBIO CLAVE: Usamos la ruta /me para evitar el error 403 de admin
+      const res = await fetch(`http://localhost:4000/api/users/me`, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + token },
+      });
+
+      if (res.ok) {
+        alert("Tu cuenta ha sido eliminada. Gracias por usar FotoTrack.");
+        localStorage.removeItem("fototrack-token");
+        navigate("/login");
+      } else {
+        const data = await res.json();
+        alert(data.error || "No se pudo eliminar la cuenta.");
+      }
+    } catch (err) {
+      alert("Error de conexión al intentar eliminar la cuenta.");
+    }
+  };
+
   const handleDocNumberChange = (e) => {
-    let value = e.target.value.replace(/\D/g, ""); // Borra todo lo que no sea número
-    
+    let value = e.target.value.replace(/\D/g, ""); 
     if (editDocType === "DNI") {
-      value = value.slice(0, 8); // DNI máximo 8 dígitos
+      value = value.slice(0, 8);
       setEditDocNumber(value);
     } else {
-      // CUIT/CUIL máximo 11 dígitos y le inyectamos los guiones
       value = value.slice(0, 11);
       if (value.length > 2 && value.length <= 10) {
         value = `${value.slice(0, 2)}-${value.slice(2)}`;
@@ -74,23 +96,17 @@ export function ProfilePage() {
     }
   };
 
-  // 🧹 LIMPIEZA: Si cambia de DNI a CUIT, limpiamos para no dejar formatos cruzados
   const handleDocTypeChange = (e) => {
     setEditDocType(e.target.value);
     setEditDocNumber(""); 
   };
 
-  // Función para guardar los cambios desde el Popup
   const handleSaveChanges = async (e) => {
     e.preventDefault();
     setSaving(true);
-
     try {
       const token = localStorage.getItem("fototrack-token");
-      
-      // 📦 EMPAQUETADO: Unimos el tipo y el número para guardarlo en la BD
       const cuitCompleto = editDocNumber ? `${editDocType}: ${editDocNumber}` : null;
-
       const res = await fetch("http://localhost:4000/api/auth/update", {
         method: "PUT",
         headers: {
@@ -99,7 +115,6 @@ export function ProfilePage() {
         },
         body: JSON.stringify({ nombre: editName, cuit: cuitCompleto }),
       });
-
       if (res.ok) {
         setUser({ ...user, nombre: editName, cuit: cuitCompleto });
         setShowModal(false); 
@@ -126,6 +141,7 @@ export function ProfilePage() {
 
   return (
     <div className="container py-5" style={{ maxWidth: 700 }}>
+      {/* Encabezado */}
       <div className="d-flex align-items-center justify-content-between mb-4">
         <h2 className="fw-bold mb-0">👤 Mi Perfil</h2>
         <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate("/app/perfil")}>
@@ -133,9 +149,9 @@ export function ProfilePage() {
         </button>
       </div>
 
-      <div className="card border-0 shadow-lg rounded-4 overflow-hidden">
+      {/* Tarjeta de Perfil */}
+      <div className="card border-0 shadow-lg rounded-4 overflow-hidden mb-4">
         <div style={{ height: "120px", background: "linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%)" }}></div>
-
         <div className="card-body px-5 pb-5 position-relative text-center">
           <div className="mb-4" style={{ marginTop: "-60px" }}>
             <img 
@@ -158,7 +174,7 @@ export function ProfilePage() {
 
           <hr className="text-muted opacity-25" />
 
-          {/* DATOS DEL USUARIO */}
+          {/* Datos del usuario */}
           <div className="text-start mt-4">
             <h5 className="fw-semibold mb-3">Información de la Cuenta</h5>
             <div className="row g-3">
@@ -174,12 +190,10 @@ export function ProfilePage() {
                   <strong className="d-block text-truncate">{user.correo}</strong>
                 </div>
               </div>
-              
               <div className="col-sm-12">
                 <div className="p-3 bg-light rounded-3 border">
                   <small className="text-muted d-block mb-1">Documento Tributario (Facturación)</small>
                   <strong className="d-block text-truncate">
-                    {/* Al mostrarlo, ya dirá "CUIT: 20-35123456-9" o "DNI: 35123456" automáticamente */}
                     {user.cuit || <span className="text-muted fw-normal">No especificado</span>}
                   </strong>
                 </div>
@@ -188,29 +202,35 @@ export function ProfilePage() {
           </div>
 
           <div className="mt-5 d-flex justify-content-center">
-             <button 
-                className="btn btn-primary px-5 py-2 fw-semibold shadow-sm" 
-                onClick={() => setShowModal(true)} 
-             >
+             <button className="btn btn-primary px-5 py-2 fw-semibold shadow-sm" onClick={() => setShowModal(true)}>
                 ✏️ Editar Perfil
              </button>
           </div>
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* 🪟 POPUP (MODAL) PARA EDITAR EL PERFIL */}
-      {/* ========================================== */}
+      {/* ⚠️ ZONA DE PELIGRO */}
+      <div className="card border-danger bg-light rounded-4 overflow-hidden border-opacity-25 shadow-sm">
+        <div className="card-body p-4 d-flex align-items-center justify-content-between">
+            <div>
+                <h6 className="fw-bold text-danger mb-1">¿Estás seguro que deseas eliminar tu cuenta?</h6>
+                <p className="small text-muted mb-0">Esta acción borrará tus datos y el historial de compras para siempre.</p>
+            </div>
+            <button className="btn btn-outline-danger btn-sm fw-bold" onClick={handleDeleteAccount}>
+                Eliminar mi cuenta
+            </button>
+        </div>
+      </div>
+
+      {/* MODAL EDITAR PERFIL */}
       {showModal && (
         <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1050 }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content border-0 shadow-lg rounded-4">
-              
               <div className="modal-header border-bottom-0 pb-0">
                 <h5 className="modal-title fw-bold">Actualizar Datos</h5>
                 <button type="button" className="btn-close" onClick={() => setShowModal(false)}></button>
               </div>
-              
               <div className="modal-body">
                 <form onSubmit={handleSaveChanges}>
                   <div className="mb-3">
@@ -224,8 +244,6 @@ export function ProfilePage() {
                       minLength="3"
                     />
                   </div>
-
-                  {/* 👈 NUEVO: INPUT GROUP CON SELECT Y MÁSCARA */}
                   <div className="mb-3">
                     <label className="form-label text-muted small fw-semibold">Documento (Para Facturación)</label>
                     <div className="input-group input-group-lg shadow-sm">
@@ -248,28 +266,22 @@ export function ProfilePage() {
                       />
                     </div>
                   </div>
-                  
                   <div className="mb-4">
                     <label className="form-label text-muted small fw-semibold">Correo Electrónico (No editable)</label>
                     <input type="email" className="form-control text-muted bg-light" value={user.correo} disabled />
                   </div>
-
                   <div className="d-flex justify-content-end gap-2">
-                    <button type="button" className="btn btn-light" onClick={() => setShowModal(false)}>
-                      Cancelar
-                    </button>
+                    <button type="button" className="btn btn-light" onClick={() => setShowModal(false)}>Cancelar</button>
                     <button type="submit" className="btn btn-primary px-4" disabled={saving}>
                       {saving ? "Guardando..." : "Guardar Cambios"}
                     </button>
                   </div>
                 </form>
               </div>
-
             </div>
           </div>
         </div>
       )}
-
     </div>
   );
 }

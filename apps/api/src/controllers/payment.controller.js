@@ -52,22 +52,30 @@ export const paymentController = {
       console.log(`🔗 URL del Webhook configurada en: ${finalWebhookUrl}`);
 
       // ==============================================================
-      // 3. CUERPO DE PREFERENCIA (Súper limpio para el Popup)
+      // 3. CUERPO DE PREFERENCIA (Corregido: Eliminado auto_return)
       // ==============================================================
       const preferenceBody = {
         items: mpItems,
-        payer: { email: userEmail },
         
-        // Dejamos las back_urls por si Mercado Pago las pide por protocolo,
-        // pero eliminamos por completo el "auto_return" problemático.
+        // Payer de prueba para evitar el bloqueo de "auto-compra"
+        payer: { 
+          email: "test_user_999999@testuser.com" 
+        }, 
+        
+        // URLs de retorno: Fundamentales para que el usuario pueda volver a tu web
         back_urls: {
           success: "http://localhost:5173/checkout/success",
           failure: "http://localhost:5173/checkout/failure",
           pending: "http://localhost:5173/checkout/pending"
         },
         
+        // 🚀 ELIMINADO: auto_return. 
+        // Esto soluciona el error 400 "auto_return invalid". 
+        // Mañana el profesor solo tendrá que tocar el botón "Volver al sitio".
+
         notification_url: finalWebhookUrl,
         
+        // Datos adicionales para que el Webhook identifique la compra
         metadata: {
           user_id: userId,
           email: userEmail,

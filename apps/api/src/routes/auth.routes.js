@@ -113,4 +113,14 @@ router.post("/set-admin", async (req, res) => {
   }
 });
 
+/**
+ * 🔍 Buscar fotos del usuario manualmente
+ */
+router.post("/find-my-photos", authMiddleware, authController.findMyPhotos);
+
+/**
+ * ✅ NUEVO — Confirmar o rechazar match de la IA (Dar vida a los botones)
+ */
+router.post("/confirm-match", authMiddleware, authController.confirmMatch);
+
 export default router;

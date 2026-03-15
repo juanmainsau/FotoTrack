@@ -7,11 +7,12 @@ import { PurchaseReceiptModal } from "../components/PurchaseReceiptModal";
 function MisComprasPage() {
   const [compras, setCompras] = useState([]);
   const [config, setConfig] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null); // 👈 NUEVO: Guardamos tus datos
   const [loading, setLoading] = useState(true);
   
   // Estados para los Modales
-  const [selectedCompra, setSelectedCompra] = useState(null); // Para el modal de resumen rápido
-  const [reciboAImprimir, setReciboAImprimir] = useState(null); // Para el modal del Comprobante
+  const [selectedCompra, setSelectedCompra] = useState(null); 
+  const [reciboAImprimir, setReciboAImprimir] = useState(null); 
 
   // Carga de historial y configuración (Datos del negocio)
   async function loadData() {
@@ -28,6 +29,13 @@ function MisComprasPage() {
       const resConfig = await authFetch("http://localhost:4000/api/config");
       const dataConfig = await resConfig.json();
       setConfig(dataConfig);
+
+      // 3. 👈 NUEVO: Cargar los datos del usuario logueado
+      const resUser = await authFetch("http://localhost:4000/api/auth/me");
+      const dataUser = await resUser.json();
+      if (dataUser.ok) {
+        setCurrentUser(dataUser.usuario || dataUser.user);
+      }
 
     } catch (err) {
       console.error("Error cargando compras o configuración:", err);
@@ -84,7 +92,7 @@ function MisComprasPage() {
                           {compra.estadoPago === 'approved' ? 'Aprobado' : 'Pendiente'}
                         </span>
                       </td>
-                      <td className="fw-semibold text-dark">${compra.total}</td>
+                      <td className="fw-semibold text-dark">${Number(compra.total).toLocaleString('es-AR')}</td>
                       <td className="text-end pe-4">
                         <div className="d-flex justify-content-end gap-2">
                           <button 
@@ -103,7 +111,13 @@ function MisComprasPage() {
                               className="btn btn-sm btn-outline-primary fw-bold"
                               onClick={(e) => {
                                   e.stopPropagation(); 
-                                  setReciboAImprimir(compra);
+                                  // 👈 MAGIA: Combinamos la compra con tus datos personales
+                                  setReciboAImprimir({
+                                    ...compra,
+                                    nombreUsuario: currentUser?.nombre,
+                                    correo: currentUser?.correo,
+                                    cuitCliente: currentUser?.cuit // Pasamos el CUIT/DNI normalizado
+                                  });
                               }}
                             >
                               📄 Descargar Recibo
@@ -182,18 +196,20 @@ function MisComprasPage() {
                                 {item.nombreAlbum || "Evento Fotográfico"}
                             </div>
                          </div>
-                         <div className="fw-semibold text-dark">${item.precioUnitario}</div>
+                         <div className="fw-semibold text-dark">${Number(item.precioUnitario).toLocaleString('es-AR')}</div>
                       </div>
                     ))}
                     {(!selectedCompra.items || selectedCompra.items.length === 0) && (
-                        <div className="p-3 text-center text-muted small">No se cargaron detalles visuales para esta compra.</div>
+                        <div className="p-3 text-center text-danger small fw-bold">
+                          ⚠️ Las imágenes de este álbum ya no se encuentran disponibles.
+                        </div>
                     )}
                   </div>
 
                   {/* Total Abonado */}
                   <div className="d-flex justify-content-between align-items-center bg-light border p-3 rounded mb-4">
                     <span className="fs-6 fw-semibold text-muted">Total Abonado:</span>
-                    <span className="fs-4 fw-bold text-success">${selectedCompra.total}</span>
+                    <span className="fs-4 fw-bold text-success">${Number(selectedCompra.total).toLocaleString('es-AR')}</span>
                   </div>
                   
                   {/* Nota informativa sobre la entrega */}

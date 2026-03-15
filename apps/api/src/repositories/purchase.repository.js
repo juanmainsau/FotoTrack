@@ -13,12 +13,13 @@ export const purchaseRepository = {
 
   /**
    * Guarda la compra en la tabla compras
+   * MODIFICACIÓN: Ahora incluye idTransaccionMP para evitar duplicados
    */
-  async createPurchase(connection, { idUsuario, idMetodoPago, estadoPago }) {
+  async createPurchase(connection, { idUsuario, idMetodoPago, estadoPago, idTransaccionMP }) {
     const [result] = await connection.execute(
-      `INSERT INTO compras (idUsuario, idMetodoPago, estadoPago)
-       VALUES (?, ?, ?)`,
-      [idUsuario, idMetodoPago, estadoPago]
+      `INSERT INTO compras (idUsuario, idMetodoPago, estadoPago, idTransaccionMP)
+       VALUES (?, ?, ?, ?)`,
+      [idUsuario, idMetodoPago, estadoPago, idTransaccionMP || null]
     );
 
     return result.insertId;
@@ -99,7 +100,7 @@ export const purchaseRepository = {
         ic.precioUnitario,
         img.rutaMiniatura
       FROM compras c
-      INNER JOIN items_compra ic ON ic.idCompra = c.idCompra
+      INNER JOIN items_compra ic ON c.idCompra = ic.idCompra
       LEFT JOIN imagenes img ON img.idImagen = ic.idImagen
       WHERE c.idUsuario = ?
       ORDER BY c.fecha DESC

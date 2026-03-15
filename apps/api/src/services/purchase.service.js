@@ -4,16 +4,20 @@ import { db } from "../config/db.js";
 
 export const purchaseService = {
   
-  async createPurchase({ idUsuario, idCarrito, idMetodoPago }) {
+  // 1. MODIFICACIÓN: Agregamos idTransaccionMP a los argumentos recibidos
+  async createPurchase({ idUsuario, idCarrito, idMetodoPago, idTransaccionMP = null }) {
     let connection;
 
     try {
       connection = await purchaseRepository.beginTransaction();
 
+      // 2. MODIFICACIÓN: Pasamos el idTransaccionMP y ponemos el estado como 'approved'
+      // ya que este servicio es llamado cuando Mercado Pago confirma el éxito.
       const idCompra = await purchaseRepository.createPurchase(connection, {
         idUsuario,
         idMetodoPago,
-        estadoPago: "pendiente",
+        idTransaccionMP, // 👈 Se guarda en el INSERT inicial
+        estadoPago: "approved", 
       });
 
       const cartItems = await purchaseRepository.getCartItems(idCarrito);
@@ -89,11 +93,10 @@ export const purchaseService = {
         idItemCompra: row.idItemCompra,
         tipoProducto: row.tipoProducto,
         idImagen: row.idImagen,
-        miniatura: row.rutaMiniatura || "https://via.placeholder.com/150?text=Sin+Imagen", // MEJORA: Fallback de seguridad visual
+        miniatura: row.rutaMiniatura || "https://via.placeholder.com/150?text=Sin+Imagen", 
         precioUnitario: row.precioUnitario,
       });
 
-      // Sumamos el total acumulando el precio de cada item
       comprasMap[row.idCompra].total += Number(row.precioUnitario);
     }
 
@@ -127,7 +130,7 @@ export const purchaseService = {
     }
 
     // 3. Inicializar Archiver
-    const archive = archiver("zip", { zlib: { level: 9 } }); // Nivel de compresión máximo
+    const archive = archiver("zip", { zlib: { level: 9 } });
 
     archive.on("error", (err) => {
       console.error("❌ Error interno del archiver:", err);
@@ -141,17 +144,16 @@ export const purchaseService = {
       try {
         const response = await fetch(urlOriginal);
         
-        // MEJORA: Verificamos si la imagen real existe en el bucket/servidor antes de agregarla.
         if (!response.ok) {
           console.warn(`⚠️ Omitiendo imagen ${idImagen}: URL inaccesible (${response.status})`);
-          continue; // Si falla una foto, no rompemos todo el ZIP, simplemente pasamos a la siguiente.
+          continue; 
         }
 
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
         archive.append(buffer, {
-          name: `FotoTrack_${idImagen}_${i + 1}.jpg`, // MEJORA: Nombres únicos y prolijos
+          name: `FotoTrack_${idImagen}_${i + 1}.jpg`,
         });
         
       } catch (fetchError) {

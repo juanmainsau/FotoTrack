@@ -2,7 +2,6 @@
 import { albumService } from "../services/album.service.js";
 import { db } from "../config/db.js";
 import { imageService } from "../services/image.service.js";
-// 👇 Importamos el servicio de IA y el sistema de archivos
 import { faceService } from "../services/face.service.js";
 import fs from "fs/promises"; 
 
@@ -11,6 +10,13 @@ export const albumController = {
   async getAll(req, res) {
     try {
       const albums = await albumService.listAlbums();
+      
+      // 🛡️ FILTRO DE BAJA LÓGICA: 
+      if (!req.user || req.user.rol !== 'admin') {
+        const albumsActivos = albums.filter(a => a.estado !== 'oculto');
+        return res.json(albumsActivos);
+      }
+
       return res.json(albums);
     } catch (err) {
       console.error("Error en getAll:", err);
@@ -25,6 +31,10 @@ export const albumController = {
 
       if (!album) {
         return res.status(404).json({ ok: false, error: "Álbum no encontrado" });
+      }
+
+      if (album.estado === 'oculto' && (!req.user || req.user.rol !== 'admin')) {
+        return res.status(403).json({ ok: false, error: "Este evento ya no se encuentra disponible" });
       }
 
       return res.json({ ok: true, album });
@@ -45,42 +55,68 @@ export const albumController = {
     }
   },
 
+  // 🗑️ BAJA LÓGICA (SOFT DELETE)
   async eliminar(req, res) {
     try {
       const { id } = req.params;
-
-      // 1. Obtener todas las imágenes del álbum antes de borrarlo
-      const [imagenes] = await db.execute("SELECT idImagen FROM imagenes WHERE idAlbum = ?", [id]);
-      
-      // 2. Borrar cada imagen de Cloudinary y de la IA (Pinecone)
-      // Usamos Promise.all para que sea rápido en paralelo
-      if (imagenes.length > 0) {
-        console.log(`🗑️ Eliminando ${imagenes.length} imágenes de Cloudinary/IA del álbum ${id}...`);
-        await Promise.all(
-          imagenes.map((img) => imageService.deleteImage(img.idImagen))
-        );
-      }
-
-      // 3. Borrado físico en la base de datos (Usamos el repository que ya tenés armado)
-      // Borra en cascada: Items Carrito -> Imagenes -> Album
-      const { albumRepository } = await import("../repositories/album.repository.js");
-      await albumRepository.deleteHard(id);
+      await db.execute("UPDATE album SET estado = 'oculto' WHERE idAlbum = ?", [id]);
       
       return res.json({
         ok: true,
-        message: "Álbum y sus fotos eliminados permanentemente",
+        message: "Álbum ocultado correctamente.",
       });
     } catch (err) {
       console.error("Error en eliminar:", err);
-      return res.status(500).json({ ok: false, error: "Error al eliminar álbum" });
+      return res.status(500).json({ ok: false, error: "Error al ocultar el álbum" });
     }
   },
 
+  // ✅ ACTUALIZADO: Persistencia directa para asegurar cambio de Estado y Precios
   async actualizar(req, res) {
     try {
       const { id } = req.params;
-      const data = req.body;
-      await albumService.actualizarAlbum(id, data);
+      const { 
+        nombreEvento, 
+        fechaEvento, 
+        localizacion, 
+        descripcion, 
+        precioFoto, 
+        precioAlbum, 
+        estado, 
+        visibilidad, 
+        tags 
+      } = req.body;
+
+      // Realizamos el UPDATE directamente para evitar que el service ignore campos nuevos
+      const [result] = await db.execute(
+        `UPDATE album 
+         SET nombreEvento = ?, 
+             fechaEvento = ?, 
+             localizacion = ?, 
+             descripcion = ?, 
+             precioFoto = ?, 
+             precioAlbum = ?, 
+             estado = ?, 
+             visibilidad = ?, 
+             tags = ?
+         WHERE idAlbum = ?`,
+        [
+          nombreEvento, 
+          fechaEvento, 
+          localizacion, 
+          descripcion, 
+          precioFoto, 
+          precioAlbum, 
+          estado, 
+          visibilidad, 
+          tags, 
+          id
+        ]
+      );
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({ ok: false, error: "No se encontró el álbum para actualizar" });
+      }
 
       return res.json({
         ok: true,
@@ -90,19 +126,17 @@ export const albumController = {
       console.error("Error en actualizar:", err);
       return res.status(400).json({
         ok: false,
-        error: err.message || "Error al actualizar álbum",
+        error: "Error al actualizar álbum en la base de datos",
       });
     }
   },
 
-  // ⭐ Crear álbum + imágenes + IA + Limpieza segura
+  // ⭐ Crear álbum + imágenes + IA
   async createComplete(req, res) {
     try {
-      // 1) Metadata JSON
       const metadata = JSON.parse(req.body.metadata);
       const { nombreEvento, fechaEvento, localizacion, descripcion, precioFoto, precioAlbum, estado, visibilidad, tags } = metadata;
 
-      // 2) Crear álbum en BD
       const [result] = await db.execute(
         `INSERT INTO album (
           nombreEvento, fechaEvento, localizacion, descripcion,
@@ -112,63 +146,114 @@ export const albumController = {
       );
 
       const idAlbum = result.insertId;
-
-      // 3) Código interno
       const codigoInterno = `ALB-${idAlbum.toString().padStart(4, "0")}`;
-      await db.execute(
-        "UPDATE album SET codigoInterno = ? WHERE idAlbum = ?",
-        [codigoInterno, idAlbum]
-      );
+      await db.execute("UPDATE album SET codigoInterno = ? WHERE idAlbum = ?", [codigoInterno, idAlbum]);
 
-      // 4) Procesar imágenes e invocar a la IA
       const files = req.files || [];
-      console.log(`🚀 Procesando ${files.length} imágenes para el álbum ${idAlbum}...`);
+      console.log(`🚀 Procesando secuencialmente ${files.length} imágenes para el álbum ${idAlbum}...`);
 
-      // Usamos Promise.all para subir todo en paralelo
-      const processingPromises = files.map(async (file) => {
+      // ✅ FIX: Reemplazado Promise.all por for...of para evitar Error 502
+      for (const file of files) {
         try {
-          // A. Subir a Cloudinary y Guardar en DB (IMPORTANTE: imageService YA NO BORRA el archivo)
           const savedImage = await imageService.processSingleImage(file, idAlbum);
           
-          // B. Si se guardó bien, disparar la IA
           if (savedImage && savedImage.idImagen) {
-            // No usamos await para no bloquear la respuesta al usuario
-            faceService.processAndIndexImage(file.path, savedImage.idImagen)
+            // El 'await' aquí es la clave para que la IA no ahogue al servidor
+            await faceService.processAndIndexImage(file.path, savedImage.idImagen)
               .then(matches => {
-                 if (matches > 0) console.log(`🤖 [IA] MATCH detectado en img ${savedImage.idImagen}`);
+                 if (matches > 0) console.log(`🤖 [IA] MATCH en img ${savedImage.idImagen}`);
               })
-              .catch(err => console.error(`❌ [IA] Error analizando img ${savedImage.idImagen}:`, err))
-              .finally(() => {
-                 // C. 🗑️ LIMPIEZA FINAL: Aquí es seguro borrar el archivo porque la IA ya terminó
-                 fs.unlink(file.path).catch(() => {}); 
-              });
-          } else {
-             // Si falló el guardado en BD, borramos el archivo inmediatamente
-             fs.unlink(file.path).catch(() => {});
+              .catch(err => console.error(`❌ [IA] Error en img ${savedImage.idImagen}:`, err));
           }
         } catch (error) {
           console.error(`Error procesando archivo ${file.originalname}:`, error);
-          // Si hubo error en la subida, borramos el archivo para no dejar basura
-          fs.unlink(file.path).catch(() => {});
+        } finally {
+          // Eliminamos el archivo pase lo que pase, usando await
+          await fs.unlink(file.path).catch(() => {});
         }
-      });
+      }
 
-      // Esperamos a que todas las subidas a Cloudinary terminen (la IA corre en background)
-      await Promise.all(processingPromises);
-
-      return res.json({
-        success: true,
-        idAlbum,
-        codigoInterno,
-      });
+      return res.json({ success: true, idAlbum, codigoInterno });
 
     } catch (err) {
       console.error("Error en createComplete:", err);
-      return res.status(500).json({
-        success: false,
-        message: "Error al crear álbum completo",
-        error: err.message,
-      });
+      return res.status(500).json({ success: false, error: err.message });
     }
   },
+  
+  async addImagesToAlbum(req, res) {
+    try {
+      const { id } = req.params;
+      const idAlbum = Number(id);
+      const files = req.files || [];
+
+      if (files.length === 0) {
+        return res.status(400).json({ ok: false, error: "No se enviaron imágenes" });
+      }
+
+      console.log(`🚀 Añadiendo secuencialmente ${files.length} imágenes al álbum ID: ${idAlbum}...`);
+
+      // ✅ FIX: Reemplazado Promise.all por for...of para evitar Error 502
+      for (const file of files) {
+        try {
+          const savedImage = await imageService.processSingleImage(file, idAlbum);
+          
+          if (savedImage && savedImage.idImagen) {
+            await faceService.processAndIndexImage(file.path, savedImage.idImagen)
+              .then(matches => {
+                 console.log(`🤖 [IA] Procesada img ${savedImage.idImagen}. Matches: ${matches}`);
+              })
+              .catch(err => console.error(`❌ [IA] Error en img ${savedImage.idImagen}:`, err));
+          }
+        } catch (error) {
+          console.error(`❌ Error en archivo ${file.originalname}:`, error);
+        } finally {
+          await fs.unlink(file.path).catch(() => {});
+        }
+      }
+
+      return res.json({ ok: true, message: "Imágenes añadidas y procesadas por IA" });
+
+    } catch (err) {
+      console.error("🔴 Error crítico en addImagesToAlbum:", err);
+      return res.status(500).json({ ok: false, error: "Error interno al procesar imágenes" });
+    }
+  },
+
+  async reprocessAlbumIA(req, res) {
+    try {
+      const { id } = req.params;
+      const idAlbum = Number(id);
+
+      const [imagenes] = await db.execute(
+        "SELECT idImagen, rutaOriginal FROM imagenes WHERE idAlbum = ?", 
+        [idAlbum]
+      );
+
+      if (imagenes.length === 0) {
+        return res.status(404).json({ ok: false, error: "Este álbum no tiene fotos." });
+      }
+
+      console.log(`🔄 Re-escaneando ${imagenes.length} fotos para el álbum ${idAlbum}...`);
+
+      let totalDetecciones = 0;
+      for (const img of imagenes) {
+        try {
+          const numCaras = await faceService.processAndIndexImage(img.rutaOriginal, img.idImagen);
+          totalDetecciones += numCaras;
+        } catch (err) {
+          console.error(`❌ Error en imagen ${img.idImagen}:`, err.message);
+        }
+      }
+
+      return res.json({ 
+        ok: true, 
+        message: `Sincronización exitosa. Se detectaron ${totalDetecciones} caras.` 
+      });
+
+    } catch (error) {
+      console.error("Error en reprocessAlbumIA:", error);
+      return res.status(500).json({ ok: false, error: "Error interno del servidor." });
+    }
+  }
 };

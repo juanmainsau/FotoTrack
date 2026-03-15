@@ -1,22 +1,22 @@
-// apps/api/src/routes/config.routes.js
 import { Router } from "express";
-// 👇 CAMBIO IMPORTANTE: Importamos el Controller, no el Service
 import { configController } from "../controllers/config.controller.js"; 
 import multer from "multer";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { requireAdmin } from "../middlewares/roles.middleware.js";
 
 const router = Router();
-// Configuración temporal de multer para subir la imagen antes de pasarla a Cloudinary
 const upload = multer({ dest: "temp/" });
 
-// 🔐 Obtener configuración (Delegamos directo al controlador)
-router.get("/", authMiddleware, requireAdmin, configController.getConfig);
+// 🟢 GET: Datos generales (Vendedor, etc)
+router.get("/", authMiddleware, configController.getConfig);
 
-// 🔐 Guardar parámetros
+// 💰 GET: Solo precios (Para el flujo de creación de álbumes)
+router.get("/prices", authMiddleware, configController.getGlobalPrices);
+
+// 🔴 PUT: Escritura - SOLO Administradores
 router.put("/", authMiddleware, requireAdmin, configController.updateConfig);
 
-// 🔐 Subir watermark (Multer procesa el archivo 'watermark' antes del controller)
+// 🔴 POST: Subir watermark - SOLO Administradores
 router.post(
   "/watermark",
   authMiddleware,
