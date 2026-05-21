@@ -11,9 +11,67 @@ export const purchaseController = {
    */
   async getAllAdmin(req, res) {
     try {
-      // 1. Realizamos la consulta con JOIN para traer datos del usuario
-      // y calculamos el TOTAL sumando los ítems de esa compra
-      const [ventas] = await db.query(`
+      // 1. Recibir parámetros de la URL
+      const { 
+        page = 1, 
+        limit = 10, 
+        estado = '', 
+        cliente = '', 
+        fechaDesde = '', 
+        fechaHasta = '',
+        sort = 'DESC' // 👈 Nuevo parámetro de orden (por defecto DESC)
+      } = req.query;
+
+      const offset = (Number(page) - 1) * Number(limit);
+      const limitNumber = Number(limit);
+
+      // Validamos el sentido del ordenamiento para evitar inyección SQL
+      const orderDir = sort.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
+      // 2. Definimos las tablas y relaciones (FROM/JOIN)
+      let fromTables = `
+        FROM compras c
+        JOIN usuarios u ON c.idUsuario = u.idUsuario
+        LEFT JOIN items_compra ic ON c.idCompra = ic.idCompra
+      `;
+
+      // 3. Definimos la cláusula de filtros (WHERE)
+      let whereClause = ` WHERE 1=1`;
+      const queryParams = [];
+
+      if (estado) {
+        whereClause += ` AND TRIM(c.estadoPago) = TRIM(?)`;
+        queryParams.push(estado);
+      }
+      if (cliente) {
+        whereClause += ` AND (u.nombre LIKE ? OR u.correo LIKE ?)`;
+        queryParams.push(`%${cliente}%`, `%${cliente}%`);
+      }
+      if (fechaDesde) {
+        whereClause += ` AND DATE(c.fecha) >= ?`;
+        queryParams.push(fechaDesde);
+      }
+      if (fechaHasta) {
+        whereClause += ` AND DATE(c.fecha) <= ?`;
+        queryParams.push(fechaHasta);
+      }
+
+      // 4. Contar el total de registros únicos para la paginación
+      const countQuery = `SELECT COUNT(DISTINCT c.idCompra) as total ${fromTables} ${whereClause}`;
+      const [countResult] = await db.query(countQuery, queryParams);
+      const totalRegistros = countResult[0].total;
+
+      // 5. Calcular Ingresos Globales (Solo de pagos 'approved' que cumplan los filtros)
+      const incomeQuery = `
+        SELECT COALESCE(SUM(ic.precioUnitario * ic.cantidad), 0) as ingresosGlobales
+        ${fromTables}
+        ${whereClause} AND TRIM(c.estadoPago) = 'approved'
+      `;
+      const [incomeResult] = await db.query(incomeQuery, queryParams);
+      const ingresosGlobales = incomeResult[0].ingresosGlobales;
+
+      // 6. Consulta de datos para la página actual con ORDEN DINÁMICO
+      const dataQuery = `
         SELECT 
           c.idCompra, 
           c.fecha, 
@@ -22,23 +80,34 @@ export const purchaseController = {
           u.nombre AS nombreUsuario, 
           u.correo,
           COALESCE(SUM(ic.precioUnitario * ic.cantidad), 0) AS total
-        FROM compras c
-        JOIN usuarios u ON c.idUsuario = u.idUsuario
-        LEFT JOIN items_compra ic ON c.idCompra = ic.idCompra
+        ${fromTables}
+        ${whereClause}
         GROUP BY c.idCompra
-        ORDER BY c.fecha DESC
-      `);
+        ORDER BY c.fecha ${orderDir} 
+        LIMIT ? OFFSET ?
+      `;
 
-      return res.json(ventas);
+      const [ventas] = await db.query(dataQuery, [...queryParams, limitNumber, offset]);
+
+      // 7. Respuesta estructurada
+      res.json({
+        ok: true,
+        ventas,
+        ingresosGlobales,
+        paginacion: {
+          total: totalRegistros,
+          paginas: Math.ceil(totalRegistros / limitNumber),
+          paginaActual: Number(page),
+          limite: limitNumber
+        }
+      });
+
     } catch (err) {
       console.error("❌ Error en purchaseController.getAllAdmin:", err);
-      return res.status(500).json({
-        ok: false,
-        error: "No se pudo obtener el listado de ventas global",
-      });
+      res.status(500).json({ ok: false, error: "Error interno del servidor" });
     }
   },
-
+  
   /**
    * POST /api/compras
    * Crea una compra completa del usuario autenticado.

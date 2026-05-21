@@ -135,8 +135,26 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
                 </div>
               </div>
 
+              {/* --- ENLACE DE DESCARGA DE RESGUARDO (NUEVO) --- */}
+              {venta.estadoPago === 'approved' && (
+                <div className="alert alert-success text-center mt-5 mb-0 py-3 border-success border-opacity-25 bg-success bg-opacity-10 d-print-none">
+                  <p className="mb-1 fw-semibold text-success" style={{ fontSize: "0.9rem" }}>
+                    La compra fue entregada exitosamente a su correo electrónico.
+                  </p>
+                  <a 
+                    href={`http://localhost:4000/api/purchase/download/${venta.idCompra}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="fw-bold text-success text-decoration-underline"
+                    style={{ fontSize: "0.85rem" }}
+                  >
+                    📥 Enlace de descarga de resguardo (.zip)
+                  </a>
+                </div>
+              )}
+
               {/* --- 5. FOOTER / LEGALES --- */}
-              <div className="text-center text-muted mt-5 pt-3 border-top border-dark small" style={{ fontSize: "0.75rem" }}>
+              <div className="text-center text-muted mt-4 pt-3 border-top border-dark small" style={{ fontSize: "0.75rem" }}>
                 Comprobante generado automáticamente por el sistema FotoTrack.<br/>
                 Gracias por su compra. Las fotografías digitales no tienen cambio ni devolución.
               </div>
@@ -195,6 +213,11 @@ export function PurchaseReceiptModal({ venta, config, onClose }) {
             left: 0 !important;
             width: 100% !important;
             border: none !important; /* Quitamos el borde gris para imprimir */
+          }
+
+          /* Ocultar enlace de descarga al imprimir (ya tiene la clase d-print-none pero por las dudas) */
+          .d-print-none {
+            display: none !important;
           }
 
           /* 6. Formato de la hoja física */

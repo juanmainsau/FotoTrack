@@ -133,12 +133,19 @@ export default function AdminUsersPage() {
                       </span>
                     </td>
                     <td className="text-end pe-4">
-                      <button 
-                        className="btn btn-sm btn-outline-warning fw-bold"
-                        onClick={() => handleStatusToggle(u.idUsuario, u.estado)}
-                      >
-                        {u.estado === 'activo' ? 'Suspender' : 'Activar'}
-                      </button>
+                      {/* 🛡️ COMPARACIÓN POR ROL: Si es admin, no hay botón de suspensión */}
+                      {u.rol !== 'admin' ? (
+                        <button 
+                          className="btn btn-sm btn-outline-warning fw-bold"
+                          onClick={() => handleStatusToggle(u.idUsuario, u.estado)}
+                        >
+                          {u.estado === 'activo' ? 'Suspender' : 'Activar'}
+                        </button>
+                      ) : (
+                        <span className="badge bg-dark opacity-75 px-3 py-2">
+                          <i className="bi bi-shield-lock-fill me-1"></i> Cuenta Protegida
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}

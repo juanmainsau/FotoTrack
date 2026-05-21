@@ -11,7 +11,7 @@ function generarToken(user) {
     {
       idUsuario: user.idUsuario,
       correo: user.correo,
-      rol: user.rol,  // 👈 ahora contiene el rol verdadero
+      rol: user.rol,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }
@@ -20,7 +20,7 @@ function generarToken(user) {
 
 /**
  * findOrCreateUser
- * Ahora respeta el rol proveniente de Firebase e inserta auditoría.
+ * Ahora bloquea el acceso si el usuario no está activo.
  */
 async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, firebaseRole }) {
   // Buscar usuario en BD
@@ -43,7 +43,7 @@ async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, f
         apellido || "",
         correo,
         foto || null,
-        firebaseRole || "cliente",  // 👈 ahora toma el rol del token Firebase
+        firebaseRole || "cliente",
       ]
     );
 
@@ -59,20 +59,26 @@ async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, f
 
     // 🛡️ REGISTRO DE AUDITORÍA AUTOMÁTICO
     try {
-      // Ajustá "detalles" o "descripcion" según cómo se llame tu columna en la DB
       await db.query(
-        `INSERT INTO auditoria (idUsuario, accion, detalles) 
-         VALUES (?, 'REGISTRO', 'Nuevo usuario registrado vía Google')`,
+        `INSERT INTO auditoria (idUsuarioResponsable, idAccion, detalle) 
+         VALUES (?, 1, 'Nuevo usuario registrado vía Google/Firebase')`,
         [result.insertId]
       );
-      console.log(`✅ [Auditoría] Registro guardado para el usuario ID: ${result.insertId}`);
     } catch (auditErr) {
       console.error("⚠️ Error guardando auditoría de registro:", auditErr.message);
     }
 
   } else {
-    // Usuario EXISTE → actualizar datos y rol si cambió
+    // Usuario EXISTE → actualizar datos
     user = rows[0];
+
+    // 🛡️ REFUERZO DE SEGURIDAD CRÍTICO:
+    // Si el usuario existe pero su estado NO es 'activo', lanzamos error para frenar el login.
+    if (user.estado !== 'activo') {
+      const error = new Error("Tu cuenta está suspendida o inactiva. Contacta al administrador.");
+      error.status = 403; // Agregamos status para que el controlador lo use
+      throw error;
+    }
 
     const nuevoRol = firebaseRole || user.rol;
 
@@ -84,7 +90,7 @@ async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, f
         nombre || user.nombre,
         apellido || user.apellido,
         foto || user.foto,
-        nuevoRol,                // 👈 actualizamos rol en DB
+        nuevoRol,
         user.idUsuario,
       ]
     );
@@ -98,41 +104,16 @@ async function findOrCreateUser({ firebaseUid, correo, nombre, apellido, foto, f
     };
   }
 
-  // Crear token interno con el rol real
+  // Crear token interno solo si pasó los filtros anteriores
   const token = generarToken(user);
 
   return { user, token };
 }
 
 export const authService = {
-  // --------------------------------------------------------------
-  // REGISTRO (Firebase)
-  // --------------------------------------------------------------
   async registerWithToken(idToken) {
     const decoded = await admin.auth().verifyIdToken(idToken);
-
     if (!decoded.email) throw new Error("La cuenta no tiene correo.");
-
-    const firebaseRole = decoded.role || "cliente"; // 👈 extraemos rol real
-
-    return await findOrCreateUser({
-      firebaseUid: decoded.uid,
-      correo: decoded.email,
-      nombre: decoded.name || "",
-      apellido: decoded.family_name || "",
-      foto: decoded.picture || null,
-      firebaseRole,
-    });
-  },
-
-  // --------------------------------------------------------------
-  // LOGIN TRADICIONAL (Firebase email/password)
-  // --------------------------------------------------------------
-  async loginWithToken(idToken) {
-    const decoded = await admin.auth().verifyIdToken(idToken);
-
-    if (!decoded.email) throw new Error("Credenciales inválidas");
-
     const firebaseRole = decoded.role || "cliente";
 
     return await findOrCreateUser({
@@ -145,14 +126,24 @@ export const authService = {
     });
   },
 
-  // --------------------------------------------------------------
-  // LOGIN / REGISTRO GOOGLE
-  // --------------------------------------------------------------
+  async loginWithToken(idToken) {
+    const decoded = await admin.auth().verifyIdToken(idToken);
+    if (!decoded.email) throw new Error("Credenciales inválidas");
+    const firebaseRole = decoded.role || "cliente";
+
+    return await findOrCreateUser({
+      firebaseUid: decoded.uid,
+      correo: decoded.email,
+      nombre: decoded.name || "",
+      apellido: decoded.family_name || "",
+      foto: decoded.picture || null,
+      firebaseRole,
+    });
+  },
+
   async loginWithGoogle(idToken) {
     const decoded = await admin.auth().verifyIdToken(idToken);
-
     if (!decoded.email) throw new Error("Cuenta Google sin correo");
-
     const firebaseRole = decoded.role || "cliente";
 
     return await findOrCreateUser({

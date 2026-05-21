@@ -1,100 +1,92 @@
 // apps/web/src/pages/AdminDashboardPage.jsx
-
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 
-// Por ahora no tenemos datos reales, dejamos todo en 0
-const ADMIN_RESUMEN_INICIAL = {
-  albumsPublicados: 0,
-  fotosProcesadas: 0,
-  albumsPendientes: 0,
-  comprasUltimas24h: 0,
-};
-
-const MOCK_ACTIVIDAD_RECIENTE = [
-  {
-    id: 1,
-    tipo: "Álbum publicado",
-    detalle: "Desafío MTB Posadas",
-    fecha: "11/11/2025 18:32",
-  },
-  {
-    id: 2,
-    tipo: "Fotos procesadas",
-    detalle: "Fecha XCO Cerro Azul (320 fotos)",
-    fecha: "11/11/2025 17:05",
-  },
-  {
-    id: 3,
-    tipo: "Compra completada",
-    detalle: "Paquete de fotos — Usuario: c.ramirez",
-    fecha: "11/11/2025 16:41",
-  },
-];
-
 export function AdminDashboardPage() {
-  const resumen = ADMIN_RESUMEN_INICIAL;
+  const [resumen, setResumen] = useState({
+    ingresosTotales: 0,
+    ventasRealizadas: 0,
+    usuariosActivos: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchResumen();
+  }, []);
+
+  const fetchResumen = async () => {
+    try {
+      const res = await fetch("http://localhost:4000/api/reports/executive", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("fototrack-token")}`,
+        },
+      });
+      const result = await res.json();
+      
+      if (result.ok) {
+        // 🛡️ LÓGICA TOLERANTE A FALLOS:
+        // Buscamos los datos en 'result.reporte' o directamente en 'result'
+        const fuente = result.reporte || result;
+        
+        setResumen({
+          ingresosTotales: fuente.ingresosTotales || 0,
+          ventasRealizadas: fuente.ventasRealizadas || 0,
+          usuariosActivos: fuente.usuariosActivos || 0
+        });
+      }
+    } catch (error) {
+      console.error("Error al cargar resumen:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <div className="p-5 text-center">Cargando panel...</div>;
 
   return (
-    // Igual que en Mainscreen: solo el contenido.
-    // El sidebar lo aporta el AdminLayout.
     <div className="p-4 p-md-5">
-      {/* Título */}
       <section className="mb-4">
-        <h2 className="fw-bold mb-2">Panel de administración</h2>
-        <p className="text-muted mb-0">
-          Desde aquí vas a poder publicar y gestionar álbumes, controlar usuarios,
-          consultar reportes y monitorear la auditoría del sistema.
-        </p>
+        <div className="d-flex justify-content-between align-items-center">
+          <div>
+            <h2 className="fw-bold mb-2">Panel de administración</h2>
+            <p className="text-muted mb-0">Bienvenido al centro de control de FotoTrack.</p>
+          </div>
+          <button className="btn btn-sm btn-outline-primary" onClick={fetchResumen}>
+            Actualizar datos
+          </button>
+        </div>
       </section>
 
       {/* Métricas */}
       <section className="mb-4">
         <div className="row g-3">
-          {/* Álbumes publicados */}
-          <div className="col-12 col-md-3">
-            <div className="card border-0 shadow-sm h-100">
+          <div className="col-12 col-md-4">
+            <div className="card border-0 shadow-sm h-100 bg-primary text-white">
               <div className="card-body">
-                <div className="text-muted small mb-1">Álbumes publicados</div>
-                <div className="h4 mb-0">{resumen.albumsPublicados}</div>
+                <div className="small mb-1 opacity-75">Ingresos Totales (Aprobados)</div>
+                <div className="h2 mb-0 fw-bold">
+                  ${Number(resumen.ingresosTotales).toLocaleString('es-AR')}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Fotos procesadas */}
-          <div className="col-12 col-md-3">
+          <div className="col-12 col-md-4">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body">
-                <div className="text-muted small mb-1">Fotos procesadas</div>
-                <div className="h4 mb-0">{resumen.fotosProcesadas}</div>
-                <small className="text-muted">
-                  redimensionadas, con marca de agua, listas para venta
-                </small>
+                <div className="text-muted small mb-1">Ventas Realizadas</div>
+                <div className="h2 mb-0 fw-bold text-dark">{resumen.ventasRealizadas}</div>
+                <small className="text-muted">Compras exitosas en el sistema</small>
               </div>
             </div>
           </div>
 
-          {/* Álbumes pendientes */}
-          <div className="col-12 col-md-3">
+          <div className="col-12 col-md-4">
             <div className="card border-0 shadow-sm h-100">
               <div className="card-body">
-                <div className="text-muted small mb-1">Álbumes pendientes</div>
-                <div className="h4 mb-0">{resumen.albumsPendientes}</div>
-                <small className="text-muted">
-                  requieren revisión o publicación
-                </small>
-              </div>
-            </div>
-          </div>
-
-          {/* Compras últimas 24hs */}
-          <div className="col-12 col-md-3">
-            <div className="card border-0 shadow-sm h-100">
-              <div className="card-body">
-                <div className="text-muted small mb-1">Compras últimas 24 hs</div>
-                <div className="h4 mb-0">{resumen.comprasUltimas24h}</div>
-                <small className="text-muted">
-                  entrega automatizada por correo
-                </small>
+                <div className="text-muted small mb-1">Usuarios Activos</div>
+                <div className="h2 mb-0 fw-bold text-dark">{resumen.usuariosActivos}</div>
+                <small className="text-muted">Clientes registrados y activos</small>
               </div>
             </div>
           </div>
@@ -105,84 +97,33 @@ export function AdminDashboardPage() {
       <section className="mb-4">
         <h5 className="fw-semibold mb-3">Accesos rápidos</h5>
         <div className="row g-3">
-          {/* Crear álbum */}
           <div className="col-12 col-md-4">
-            <Link
-              to="/admin/albums/nuevo"
-              className="btn w-100 text-start border-0 shadow-sm py-3"
-            >
+            <Link to="/admin/albums/nuevo" className="card btn text-start border-0 shadow-sm py-3 h-100">
               <div className="fw-semibold">➕ Crear nuevo álbum</div>
-              <small className="text-muted">
-                Iniciá la carga de fotos para un nuevo evento MTB.
-              </small>
+              <small className="text-muted text-wrap">Iniciá la carga de fotos para un nuevo evento.</small>
             </Link>
           </div>
-
-          {/* Gestionar álbumes */}
           <div className="col-12 col-md-4">
-            <Link
-              to="/admin/albums"
-              className="btn w-100 text-start border-0 shadow-sm py-3"
-            >
-              <div className="fw-semibold">📂 Gestionar álbumes</div>
-              <small className="text-muted">
-                Editá datos, estados y visibilidad de los álbumes ya cargados.
-              </small>
+            <Link to="/admin/reports" className="card btn text-start border-0 shadow-sm py-3 h-100">
+              <div className="fw-semibold">📊 Generar Reportes</div>
+              <small className="text-muted text-wrap">Descargá listados de ventas y auditoría en PDF.</small>
             </Link>
           </div>
-
-          {/* Auditoría / procesos */}
           <div className="col-12 col-md-4">
-            <Link
-              to="/admin/audit"
-              className="btn w-100 text-start border-0 shadow-sm py-3"
-            >
-              <div className="fw-semibold">⚙️ Procesos automatizados</div>
-              <small className="text-muted">
-                Monitoreá el procesamiento de imágenes y entrega de compras.
-              </small>
+            <Link to="/admin/audit" className="card btn text-start border-0 shadow-sm py-3 h-100">
+              <div className="fw-semibold">🕵️ Auditoría</div>
+              <small className="text-muted text-wrap">Monitoreá los movimientos del sistema.</small>
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Actividad reciente */}
-      <section className="mb-4">
-        <h5 className="fw-semibold mb-3">Actividad reciente</h5>
-
-        <div className="card border-0 shadow-sm">
-          <div className="card-body p-0">
-            <div className="table-responsive">
-              <table className="table mb-0 align-middle">
-                <thead>
-                  <tr>
-                    <th scope="col">Tipo</th>
-                    <th scope="col">Detalle</th>
-                    <th scope="col">Fecha y hora</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MOCK_ACTIVIDAD_RECIENTE.map((evento) => (
-                    <tr key={evento.id}>
-                      <td>{evento.tipo}</td>
-                      <td>{evento.detalle}</td>
-                      <td className="text-muted small">{evento.fecha}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      <section className="alert alert-info border-0 shadow-sm">
+        <div className="d-flex align-items-center">
+          <span className="me-3 fs-3">ℹ️</span>
+          <div>
+            <strong>Dato del sistema:</strong> Resumen de transacciones procesadas con éxito.
           </div>
-        </div>
-      </section>
-
-      {/* Placeholder tareas */}
-      <section>
-        <h5 className="fw-semibold mb-2">Tareas pendientes</h5>
-        <div className="alert alert-secondary mb-0">
-          Próximamente vas a poder ver aquí un listado de tareas sugeridas,
-          como revisar álbumes pendientes, verificar ejecuciones de reconocimiento
-          facial o chequear posibles errores en la entrega automática de compras.
         </div>
       </section>
     </div>

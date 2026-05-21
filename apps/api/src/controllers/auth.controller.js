@@ -1,4 +1,3 @@
-// src/controllers/auth.controller.js
 import { userRepository } from "../repositories/user.repository.js";
 import { db } from "../config/db.js";
 import { faceService } from "../services/face.service.js"; 
@@ -46,16 +45,18 @@ export const authController = {
         [correo.trim()]
       );
 
-      // ✅ CORRECCIÓN: Extraemos el primer elemento del array
       const user = rows[0]; 
 
-      // 🚨 NOTA: Usamos 'contrasena' ya que así figura en tu base de datos
       if (!user || !user.contrasena || !verifyPassword(password, user.contrasena)) {
         return res.status(401).json({ ok: false, error: "Credenciales incorrectas." });
       }
 
-      if (user.estado === 'inactivo') {
-        return res.status(403).json({ ok: false, error: "Tu cuenta está suspendida. Contacta al administrador." });
+      // 🛡️ CONTROL DE ESTADO (Email/Password)
+      if (user.estado !== 'activo') {
+        return res.status(403).json({ 
+          ok: false, 
+          error: "Tu cuenta no está activa o se encuentra suspendida. Contacta al administrador." 
+        });
       }
 
       await auditService.log({
@@ -88,6 +89,14 @@ export const authController = {
 
       if (!user) {
         return res.status(404).json({ ok: false, error: "Usuario no encontrado" });
+      }
+
+      // 🛡️ CONTROL DE ESTADO (Para sesiones ya abiertas)
+      if (user.estado !== 'activo') {
+        return res.status(403).json({ 
+          ok: false, 
+          error: "Cuenta suspendida o inactiva." 
+        });
       }
 
       return res.json({
@@ -125,7 +134,6 @@ export const authController = {
 
       const hashedPassword = hashPassword(password);
 
-      // 🚨 NOTA: Usamos 'contrasena' para coincidir con tu esquema de DB
       const [result] = await db.query(
         `INSERT INTO usuarios (nombre, correo, contrasena, rol, estado) 
          VALUES (?, ?, ?, 'cliente', 'activo')`,
@@ -231,7 +239,6 @@ export const authController = {
         [idUsuario]
       );
 
-      // ✅ CORRECCIÓN: Extraemos el primer usuario del array de resultados
       const user = userRows[0];
 
       if (!user || !user.descriptor) {

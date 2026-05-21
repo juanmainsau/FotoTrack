@@ -38,7 +38,7 @@ export const authMiddleware = async (req, res, next) => {
         .json({ ok: false, error: "Token sin id de usuario." });
     }
 
-    // 4) Buscar el usuario en la BD
+    // 4) Buscar el usuario en la BD (Traemos el campo estado)
     const [rows] = await db.query(
       `SELECT idUsuario, nombre, correo, rol, foto, estado
        FROM usuarios
@@ -53,8 +53,21 @@ export const authMiddleware = async (req, res, next) => {
         .json({ ok: false, error: "Usuario no encontrado." });
     }
 
+    const user = rows[0];
+
+    // 🛡️ REFUERZO DE SEGURIDAD: Chequeo de estado suspendido
+    // Si el usuario existe pero el administrador lo suspendió, no lo dejamos pasar.
+    console.log("🛡️ Middleware revisando estado de:", user.correo, "Estado:", user.estado);
+    if (user.estado !== 'activo') {
+      return res.status(403).json({ 
+        ok: false, 
+        error: "Tu cuenta no está activa. Contacta al administrador.",
+        isSuspended: true 
+      });
+    }
+
     // 5) Adjuntar usuario a la request
-    req.user = rows[0];
+    req.user = user;
 
     return next();
   } catch (err) {

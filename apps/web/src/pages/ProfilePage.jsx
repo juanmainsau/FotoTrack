@@ -17,6 +17,16 @@ export function ProfilePage() {
     loadProfile();
   }, [navigate]);
 
+  // 🛡️ FUNCIÓN DE VALIDACIÓN PROFESIONAL
+  const validarFormatoDocumento = (tipo, numero) => {
+    if (!numero) return true; // Si está vacío, permitimos (es opcional)
+    if (tipo === "DNI") {
+      return /^[0-9]{7,8}$/.test(numero); // 7 u 8 números
+    }
+    // CUIT o CUIL: XX-XXXXXXXX-X
+    return /^(20|23|24|27|30|33)-[0-9]{8}-[0-9]{1}$/.test(numero);
+  };
+
   async function loadProfile() {
     try {
       const token = localStorage.getItem("fototrack-token");
@@ -33,11 +43,11 @@ export function ProfilePage() {
         setUser(userData);
         setEditName(userData.nombre || ""); 
         
-        // 🔧 CORRECCIÓN: Usar índices y para separar los datos
+        // ✅ CORRECCIÓN: Separación correcta de tipo y número
         if (userData.cuit && userData.cuit.includes(": ")) {
           const parts = userData.cuit.split(": ");
-          setEditDocType(parts);    // Ejemplo: "CUIT"
-          setEditDocNumber(parts);  // Ejemplo: "20-12345678-9"
+          setEditDocType(parts[0]);    // "CUIT", "DNI", etc.
+          setEditDocNumber(parts[1]);  // El número propiamente dicho
         } else if (userData.cuit) {
           setEditDocType("DNI");
           setEditDocNumber(userData.cuit);
@@ -50,7 +60,6 @@ export function ProfilePage() {
     }
   }
 
-  // 🗑️ FUNCIÓN PARA ELIMINAR CUENTA (AUTOGESTIÓN)
   const handleDeleteAccount = async () => {
     const confirmacion = window.confirm(
       "⚠️ ¿ESTÁS SEGURO? Esta acción es irreversible. Se borrarán tus datos de acceso y perderás el historial de tus fotos compradas. ¿Deseas continuar?"
@@ -60,8 +69,6 @@ export function ProfilePage() {
 
     try {
       const token = localStorage.getItem("fototrack-token");
-      
-      // 🚀 CAMBIO CLAVE: Usamos la ruta /me para evitar el error 403 de admin
       const res = await fetch(`http://localhost:4000/api/users/me`, {
         method: "DELETE",
         headers: { Authorization: "Bearer " + token },
@@ -81,18 +88,21 @@ export function ProfilePage() {
   };
 
   const handleDocNumberChange = (e) => {
-    let value = e.target.value.replace(/\D/g, ""); 
+    let value = e.target.value.replace(/[^\d-]/g, ""); // Permite números y guiones
+    
     if (editDocType === "DNI") {
-      value = value.slice(0, 8);
+      value = value.replace(/\D/g, "").slice(0, 8); // Solo números, max 8
       setEditDocNumber(value);
     } else {
-      value = value.slice(0, 11);
-      if (value.length > 2 && value.length <= 10) {
-        value = `${value.slice(0, 2)}-${value.slice(2)}`;
-      } else if (value.length > 10) {
-        value = `${value.slice(0, 2)}-${value.slice(2, 10)}-${value.slice(10)}`;
+      // Auto-formateo para CUIT/CUIL: XX-XXXXXXXX-X
+      let digits = value.replace(/\D/g, "").slice(0, 11);
+      let formatted = digits;
+      if (digits.length > 2 && digits.length <= 10) {
+        formatted = `${digits.slice(0, 2)}-${digits.slice(2)}`;
+      } else if (digits.length > 10) {
+        formatted = `${digits.slice(0, 2)}-${digits.slice(2, 10)}-${digits.slice(10)}`;
       }
-      setEditDocNumber(value);
+      setEditDocNumber(formatted);
     }
   };
 
@@ -103,6 +113,16 @@ export function ProfilePage() {
 
   const handleSaveChanges = async (e) => {
     e.preventDefault();
+
+    // 🛡️ VALIDACIÓN ANTES DE ENVIAR
+    if (!validarFormatoDocumento(editDocType, editDocNumber)) {
+      const msg = editDocType === "DNI" 
+        ? "El DNI debe tener entre 7 y 8 números." 
+        : `El formato de ${editDocType} es inválido (Ej: 20-12345678-9).`;
+      alert(msg);
+      return;
+    }
+
     setSaving(true);
     try {
       const token = localStorage.getItem("fototrack-token");
@@ -129,13 +149,11 @@ export function ProfilePage() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="container py-5 text-center">
-        <div className="spinner-border text-primary" role="status"></div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="container py-5 text-center">
+      <div className="spinner-border text-primary" role="status"></div>
+    </div>
+  );
 
   if (!user) return null;
 
@@ -144,8 +162,8 @@ export function ProfilePage() {
       {/* Encabezado */}
       <div className="d-flex align-items-center justify-content-between mb-4">
         <h2 className="fw-bold mb-0">👤 Mi Perfil</h2>
-        <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate("/app/perfil")}>
-           Volver al menú
+        <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate("/app")}>
+            Volver al menú
         </button>
       </div>
 
@@ -203,7 +221,7 @@ export function ProfilePage() {
 
           <div className="mt-5 d-flex justify-content-center">
              <button className="btn btn-primary px-5 py-2 fw-semibold shadow-sm" onClick={() => setShowModal(true)}>
-                ✏️ Editar Perfil
+               ✏️ Editar Perfil
              </button>
           </div>
         </div>
@@ -213,8 +231,8 @@ export function ProfilePage() {
       <div className="card border-danger bg-light rounded-4 overflow-hidden border-opacity-25 shadow-sm">
         <div className="card-body p-4 d-flex align-items-center justify-content-between">
             <div>
-                <h6 className="fw-bold text-danger mb-1">¿Estás seguro que deseas eliminar tu cuenta?</h6>
-                <p className="small text-muted mb-0">Esta acción borrará tus datos y el historial de compras para siempre.</p>
+                <h6 className="fw-bold text-danger mb-1">Zona de peligro</h6>
+                <p className="small text-muted mb-0">Eliminar tu cuenta borrará tus fotos compradas permanentemente.</p>
             </div>
             <button className="btn btn-outline-danger btn-sm fw-bold" onClick={handleDeleteAccount}>
                 Eliminar mi cuenta

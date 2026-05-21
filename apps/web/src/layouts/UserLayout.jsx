@@ -13,7 +13,7 @@ export function UserLayout() {
     async function loadUser() {
       try {
         const token = localStorage.getItem("fototrack-token");
-        if (!token) return; // Si no hay token, el layout de usuario igual carga (invitado)
+        if (!token) return; 
 
         const res = await axios.get("http://localhost:4000/api/auth/me", {
           headers: { Authorization: `Bearer ${token}` },
@@ -24,12 +24,20 @@ export function UserLayout() {
         }
       } catch (err) {
         console.error("Error cargando usuario (USER):", err);
-        // Opcional: si el token expiró, lo limpiamos
-        // localStorage.removeItem("fototrack-token");
+        
+        // 🛡️ CORRECCIÓN DE SEGURIDAD:
+        // Si el backend devuelve 403 es porque el usuario está SUSPENDIDO/INACTIVO.
+        // Lo expulsamos inmediatamente para evitar el "usuario fantasma".
+        if (err.response && err.response.status === 403) {
+          localStorage.removeItem("fototrack-token");
+          localStorage.removeItem("fototrack-rol");
+          localStorage.removeItem("fototrack-user"); // Por si guardas el objeto usuario
+          navigate("/"); // Redirigimos a la landing/login
+        }
       }
     }
     loadUser();
-  }, []);
+  }, [navigate]);
 
   const isAdmin = user?.rol === 'admin' || localStorage.getItem("fototrack-rol") === "admin";
 

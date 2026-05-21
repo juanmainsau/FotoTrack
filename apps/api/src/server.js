@@ -59,9 +59,6 @@ app.use(
 // =====================================================
 // ⭐ SEGURIDAD Y LOGS (CORREGIDO PARA IMÁGENES LOCALES)
 // =====================================================
-// Helmet por defecto bloquea la carga de recursos de distintos orígenes (puertos).
-// Le indicamos explícitamente que permita cross-origin para que el Frontend (puerto 5173) 
-// pueda leer las fotos (puerto 4000).
 app.use(helmet({
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
@@ -82,14 +79,16 @@ app.use("/api/albums", albumRoutes);
 app.use("/api/config", configRoutes);
 app.use("/api/carrito", cartRoutes);
 app.use("/api/compras", purchaseRoutes);
-app.use("/api/payment", paymentRoutes); 
+app.use("/api/payment", paymentRoutes);
+
+// 🚀 RUTA DE REPORTES (Mapeada a userRoutes para usar el endpoint /executive)
+app.use("/api/reports", userRoutes); 
 
 app.get("/api/auth/me", authMiddleware, authController.me);
 
 // =====================================================
 // ⭐ SERVIR UPLOADS LOCALES (CORREGIDO PARA MULTER)
 // =====================================================
-// Usamos process.cwd() porque la carpeta uploads está en la raíz de apps/api, no dentro de src
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 // =====================================================

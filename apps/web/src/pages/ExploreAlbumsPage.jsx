@@ -45,11 +45,16 @@ export function ExploreAlbumsPage() {
 
   async function handleAddAlbum(album) {
     try {
-      await addAlbumToCart(album.idAlbum);
+      // Si cart.js espera un objeto, asegúrate de que addAlbumToCart 
+      // lo maneje internamente sin concatenarlo mal a la URL
+      await addAlbumToCart(album.idAlbum); 
+      
       setMessage(`El álbum "${album.nombreEvento}" se agregó al carrito 👍`);
       setTimeout(() => setMessage(null), 3000);
-    } catch {
-      setMessage("❌ Error al agregar el álbum");
+    } catch (err) {
+      // Si el error es "El álbum no contiene imágenes", es una validación de tu lógica
+      console.error(err);
+      setMessage("❌ El álbum debe tener imágenes para ser agregado");
       setTimeout(() => setMessage(null), 3000);
     }
   }
