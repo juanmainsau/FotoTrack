@@ -7,18 +7,22 @@ export function CartPage() {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // ----------------------------
-  // Cargar carrito del usuario
-  // ----------------------------
   async function loadCart() {
     setLoading(true);
 
     try {
       const token = localStorage.getItem("fototrack-token");
 
-      const res = await fetch("http://localhost:4000/api/carrito/mio", {
-        headers: { Authorization: "Bearer " + token },
-      });
+      const res = await fetch(
+        `http://localhost:4000/api/carrito/mio?t=${Date.now()}`,
+        {
+          headers: {
+            Authorization: "Bearer " + token,
+            "Cache-Control": "no-cache",
+          },
+          cache: "no-store",
+        }
+      );
 
       const data = await res.json();
 
@@ -36,9 +40,6 @@ export function CartPage() {
     loadCart();
   }, []);
 
-  // ----------------------------
-  // Eliminar un ítem del carrito
-  // ----------------------------
   async function handleRemoveItem(idItem) {
     const token = localStorage.getItem("fototrack-token");
 
@@ -50,9 +51,6 @@ export function CartPage() {
     loadCart();
   }
 
-  // ----------------------------
-  // Vaciar carrito
-  // ----------------------------
   async function handleClearCart() {
     const confirmar = window.confirm("¿Vaciar todo el carrito?");
     if (!confirmar) return;
@@ -67,13 +65,10 @@ export function CartPage() {
     loadCart();
   }
 
-  // ----------------------------
-  // Navegar al checkout
-  // ----------------------------
   function goToCheckout() {
-    navigate("/app/checkout", { 
-      state: { idCarrito: carrito?.idCarrito } 
-    }); 
+    navigate("/app/checkout", {
+      state: { idCarrito: carrito?.idCarrito },
+    });
   }
 
   return (
@@ -82,7 +77,7 @@ export function CartPage() {
 
       {loading && <p>Cargando carrito...</p>}
 
-      {!loading && carrito && carrito.items.length === 0 && (
+      {!loading && (!carrito || carrito.items.length === 0) && (
         <div className="alert alert-info">
           Tu carrito está vacío. Agregá fotos desde cualquier álbum.
         </div>
@@ -90,7 +85,6 @@ export function CartPage() {
 
       {!loading && carrito && carrito.items.length > 0 && (
         <>
-          {/* LISTA DE ÍTEMS */}
           <div className="card border-0 shadow-sm mb-4">
             <div className="card-body">
               {carrito.items.map((item) => (
@@ -99,7 +93,6 @@ export function CartPage() {
                   className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom"
                 >
                   <div className="d-flex align-items-center gap-3">
-                    {/* MINIATURA */}
                     <img
                       src={item.miniatura}
                       alt="foto"
@@ -114,16 +107,17 @@ export function CartPage() {
 
                     <div>
                       <div className="fw-semibold">Foto #{item.idImagen}</div>
+
                       <small className="text-muted">
-                        {item.nombreAlbum}
+                        {item.nombreAlbum || "Álbum"}
                       </small>
+
                       <div className="mt-1">
-                        <strong>${item.precioUnitario}</strong>
+                        <strong>${Number(item.subtotal || item.precioUnitario || 0)}</strong>
                       </div>
                     </div>
                   </div>
 
-                  {/* BOTÓN ELIMINAR */}
                   <button
                     className="btn btn-sm btn-outline-danger"
                     onClick={() => handleRemoveItem(item.idItem)}
@@ -133,19 +127,16 @@ export function CartPage() {
                 </div>
               ))}
 
-              {/* TOTAL */}
               <div className="d-flex justify-content-end mt-3">
-                <h4 className="fw-bold">Total: ${carrito.total}</h4>
+                <h4 className="fw-bold">
+                  Total: ${Number(carrito.total || 0)}
+                </h4>
               </div>
             </div>
           </div>
 
-          {/* ACCIONES */}
           <div className="d-flex justify-content-between">
-            <button
-              className="btn btn-outline-danger"
-              onClick={handleClearCart}
-            >
+            <button className="btn btn-outline-danger" onClick={handleClearCart}>
               Vaciar carrito
             </button>
 

@@ -1,16 +1,16 @@
 // apps/api/src/services/cart.service.js
 import { cartRepository } from "../repositories/cart.repository.js";
-import { userRepository } from "../repositories/user.repository.js"; // 🔥 Necesario
+import { userRepository } from "../repositories/user.repository.js";
 
 export const cartService = {
   async getOrCreateCart(idUsuario) {
     let carrito = await cartRepository.findActiveCartByUser(idUsuario);
 
-    // Si NO existe carrito → crearlo y ASIGNARLO AL USUARIO
     if (!carrito) {
       carrito = await cartRepository.createCartForUser(idUsuario);
 
-      // 🔥 Paso obligatorio para que el checkout funcione
+      // Compatibilidad: en la nueva DB no hace nada crítico,
+      // pero se mantiene para no romper otros flujos.
       await userRepository.updateUserCart(idUsuario, carrito.idCarrito);
     }
 
@@ -21,36 +21,61 @@ export const cartService = {
     const { carrito, items } = await cartRepository.getCartWithItemsByUser(idUsuario);
 
     if (!carrito) {
-      return { idCarrito: null, total: 0, items: [] };
+      return {
+        idCarrito: null,
+        total: 0,
+        items: [],
+      };
     }
 
-    const total = items.reduce(
-      (acc, item) => acc + (item.precioUnitario * item.cantidad),
+    const mappedItems = items.map((item) => {
+      const cantidad = Number(item.cantidad || 1);
+      const precioUnitario = Number(item.precioUnitario || 0);
+      const subtotal = Number(item.subtotal ?? precioUnitario * cantidad);
+
+      return {
+        idItem: item.idItem,
+
+        idTipoProducto: item.idTipoProducto,
+        tipoProducto: item.tipoProducto,
+        codigoProducto: item.codigoProducto,
+        nombreProducto: item.nombreProducto,
+
+        idImagen: item.idImagen,
+        idAlbum: item.idAlbum,
+
+        cantidad,
+        precioUnitario,
+        subtotal,
+
+        miniatura: item.rutaMiniatura,
+        rutaOptimizado: item.rutaOptimizado,
+        rutaOriginal: item.rutaOriginal,
+
+        nombreAlbum: item.nombreAlbum,
+        albumOrigen: item.albumOrigen,
+      };
+    });
+
+    const total = mappedItems.reduce(
+      (acc, item) => acc + Number(item.subtotal || 0),
       0
     );
 
     return {
       idCarrito: carrito.idCarrito,
       total,
-      items: items.map(item => ({
-        idItem: item.idItem,
-        tipoProducto: item.tipoProducto,
-        idImagen: item.idImagen,
-        idAlbum: item.idAlbum,
-        cantidad: item.cantidad,
-        precioUnitario: item.precioUnitario,
-        miniatura: item.rutaMiniatura,
-        nombreAlbum: item.nombreAlbum
-      }))
+      items: mappedItems,
     };
   },
 
   async addImageToCart(idUsuario, idImagen) {
-    if (!idImagen) throw new Error("idImagen es requerido");
+    if (!idImagen) {
+      throw new Error("idImagen es requerido");
+    }
 
     const carrito = await this.getOrCreateCart(idUsuario);
 
-    // Evitar duplicado
     const existing = await cartRepository.findItemByCartAndImage(
       carrito.idCarrito,
       idImagen
@@ -60,19 +85,16 @@ export const cartService = {
       throw new Error("La imagen ya está en el carrito");
     }
 
-    // Obtener precio desde el álbum
     const precio = await cartRepository.getPriceForImage(idImagen);
 
-    // 🚨 Validar precio antes del insert
-    if (precio === null || precio === undefined || precio <= 0) {
+    if (precio === null || precio === undefined || Number(precio) <= 0) {
       throw new Error("El álbum no tiene precio configurado para esta imagen");
     }
 
-    // Insertar ítem en items_carrito
     await cartRepository.addImageItem({
       idCarrito: carrito.idCarrito,
       idImagen,
-      precioUnitario: precio,
+      precioUnitario: Number(precio),
     });
 
     return { ok: true };
@@ -80,7 +102,11 @@ export const cartService = {
 
   async removeItem(idUsuario, idItem) {
     const deleted = await cartRepository.deleteItemForUser(idUsuario, idItem);
-    if (!deleted) throw new Error("Ítem no encontrado o no pertenece al usuario");
+
+    if (!deleted) {
+      throw new Error("Ítem no encontrado o no pertenece al usuario");
+    }
+
     return { ok: true };
   },
 

@@ -1,21 +1,21 @@
-import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Preference } from "mercadopago";
 
-// Inicializamos MP con tu Access Token del .env
-const client = new MercadoPagoConfig({ 
-  accessToken: process.env.MP_ACCESS_TOKEN 
+const client = new MercadoPagoConfig({
+  accessToken: process.env.MP_ACCESS_TOKEN,
 });
 
-// =========================================================
-// 🤖 FUNCIÓN AUTÓMATA: Busca la URL de Ngrok por su cuenta
-// =========================================================
 async function getNgrokUrl() {
   try {
     const response = await fetch("http://127.0.0.1:4040/api/tunnels");
     const data = await response.json();
-    const httpsTunnel = data.tunnels.find(t => t.public_url.startsWith("https"));
+
+    const httpsTunnel = data.tunnels.find((t) =>
+      t.public_url.startsWith("https")
+    );
+
     return httpsTunnel ? httpsTunnel.public_url : null;
-  } catch (error) {
-    console.warn("⚠️ Ngrok no está corriendo en el puerto 4040 o no se pudo conectar.");
+  } catch {
+    console.warn("⚠️ Ngrok no está corriendo en el puerto 4040.");
     return null;
   }
 }
@@ -23,84 +23,104 @@ async function getNgrokUrl() {
 export const paymentController = {
   async createPreference(req, res) {
     try {
-      console.log("👮‍♂️ AUTENTICACIÓN RECIBIDA:", req.user); 
+      console.log("👮‍♂️ AUTENTICACIÓN RECIBIDA:", req.user);
 
       const { items, idCarrito } = req.body;
-      const userId = req.user?.id || req.user?.idUsuario || req.user?.uid || req.user?.sub;
-      const userEmail = req.user?.email || req.user?.correo || "email_no_encontrado@test.com";
+
+      const userId = req.user?.idUsuario || req.user?.id;
+      const userEmail = req.user?.correo || req.user?.email || "sin_email@test.com";
 
       if (!userId) {
-        return res.status(401).json({ error: "Usuario no autenticado (ID no encontrado)." });
+        return res.status(401).json({
+          ok: false,
+          error: "Usuario no autenticado.",
+        });
+      }
+
+      if (!idCarrito) {
+        return res.status(400).json({
+          ok: false,
+          error: "No se recibió el ID del carrito.",
+        });
       }
 
       if (!items || !Array.isArray(items) || items.length === 0) {
-        return res.status(400).json({ error: "El carrito está vacío." });
+        return res.status(400).json({
+          ok: false,
+          error: "El carrito está vacío.",
+        });
       }
 
-      const mpItems = items.map(item => ({
-        id: String(item.id || item.idImagen),
-        title: item.title || `Foto #${item.idImagen}`,
-        quantity: Number(item.quantity || 1),
-        unit_price: Number(item.price || item.precioUnitario),
-        currency_id: 'ARS',
+      const mpItems = items.map((item) => ({
+        id: String(item.idItem || item.idImagen || item.idAlbum),
+        title:
+          item.title ||
+          item.nombreProducto ||
+          item.nombreAlbum ||
+          `Producto FotoTrack #${item.idItem || item.idImagen || item.idAlbum}`,
+        quantity: Number(item.quantity || item.cantidad || 1),
+        unit_price: Number(item.price || item.precioUnitario || 0),
+        currency_id: "ARS",
       }));
 
+      const total = mpItems.reduce(
+        (acc, item) => acc + item.unit_price * item.quantity,
+        0
+      );
+
+      if (total <= 0) {
+        return res.status(400).json({
+          ok: false,
+          error: "El total de la compra debe ser mayor a cero.",
+        });
+      }
+
       const ngrokBaseUrl = await getNgrokUrl();
-      const baseUrl = ngrokBaseUrl || "http://localhost:4000"; 
+      const baseUrl = ngrokBaseUrl || "http://localhost:4000";
       const finalWebhookUrl = `${baseUrl}/api/payment/webhook`;
 
       console.log(`🔗 URL del Webhook configurada en: ${finalWebhookUrl}`);
 
-      // ==============================================================
-      // 3. CUERPO DE PREFERENCIA (Corregido: Eliminado auto_return)
-      // ==============================================================
       const preferenceBody = {
         items: mpItems,
-        
-        // Payer de prueba para evitar el bloqueo de "auto-compra"
-        payer: { 
-          email: "test_user_999999@testuser.com" 
-        }, 
-        
-        // URLs de retorno: Fundamentales para que el usuario pueda volver a tu web
+
+        payer: {
+          email: userEmail,
+        },
+
         back_urls: {
           success: "http://localhost:5173/checkout/success",
           failure: "http://localhost:5173/checkout/failure",
-          pending: "http://localhost:5173/checkout/pending"
+          pending: "http://localhost:5173/checkout/pending",
         },
-        
-        // 🚀 ELIMINADO: auto_return. 
-        // Esto soluciona el error 400 "auto_return invalid". 
-        // Mañana el profesor solo tendrá que tocar el botón "Volver al sitio".
 
         notification_url: finalWebhookUrl,
-        
-        // Datos adicionales para que el Webhook identifique la compra
+
         metadata: {
-          user_id: userId,
+          user_id: String(userId),
           email: userEmail,
-          carrito_id: idCarrito
-        }
+          carrito_id: String(idCarrito),
+        },
       };
 
-      console.log(`📤 Enviando a Mercado Pago...`);
+      console.log("📤 Enviando a Mercado Pago...");
 
       const preference = new Preference(client);
       const result = await preference.create({ body: preferenceBody });
 
-      res.json({
+      return res.json({
         ok: true,
         id: result.id,
-        url: result.init_point 
+        url: result.init_point,
       });
-
     } catch (error) {
       console.error("❌ Error al crear preferencia en Mercado Pago:", error);
-      res.status(500).json({ 
-        ok: false, 
+
+      return res.status(500).json({
+        ok: false,
         error: "No se pudo conectar con Mercado Pago.",
-        details: error.message 
+        details: error.message,
       });
     }
-  }
+  },
 };

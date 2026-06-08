@@ -179,9 +179,9 @@ export function AdminVentasPage() {
                         <tr key={v.idCompra}>
                           <td className="ps-4 fw-bold text-muted">#{v.idCompra}</td>
                           <td>
-                            <div className="small fw-semibold">{new Date(v.fecha).toLocaleDateString("es-AR")}</div>
+                            <div className="small fw-semibold">{new Date(v.fechaCompra).toLocaleDateString("es-AR")}</div>
                             <div className="text-muted small" style={{ fontSize: '0.7rem' }}>
-                              {new Date(v.fecha).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
+                              {new Date(v.fechaCompra).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} hs
                             </div>
                           </td>
                           <td>

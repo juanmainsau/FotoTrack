@@ -1,22 +1,27 @@
+// src/routes/config.routes.js
 import { Router } from "express";
-import { configController } from "../controllers/config.controller.js"; 
 import multer from "multer";
+
+import { configController } from "../controllers/config.controller.js";
 import { authMiddleware } from "../middlewares/auth.middleware.js";
 import { requireAdmin } from "../middlewares/roles.middleware.js";
 
 const router = Router();
-const upload = multer({ dest: "temp/" });
 
-// 🟢 GET: Datos generales (Vendedor, etc)
+const upload = multer({
+  dest: "temp/",
+});
+
+// GET: configuración general
 router.get("/", authMiddleware, configController.getConfig);
 
-// 💰 GET: Solo precios (Para el flujo de creación de álbumes)
+// GET: precios globales
 router.get("/prices", authMiddleware, configController.getGlobalPrices);
 
-// 🔴 PUT: Escritura - SOLO Administradores
+// PUT: actualizar configuración
 router.put("/", authMiddleware, requireAdmin, configController.updateConfig);
 
-// 🔴 POST: Subir watermark - SOLO Administradores
+// POST: subir marca de agua
 router.post(
   "/watermark",
   authMiddleware,

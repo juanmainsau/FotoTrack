@@ -38,12 +38,27 @@ export const authMiddleware = async (req, res, next) => {
         .json({ ok: false, error: "Token sin id de usuario." });
     }
 
-    // 4) Buscar el usuario en la BD (Traemos el campo estado)
+    // 4) Buscar el usuario en la BD nueva
     const [rows] = await db.query(
-      `SELECT idUsuario, nombre, correo, rol, foto, estado
-       FROM usuarios
-       WHERE idUsuario = ?
-       LIMIT 1`,
+      `
+      SELECT
+        u.idUsuario,
+        u.nombre,
+        u.apellido,
+        u.correo,
+        u.foto,
+        u.cuit,
+        r.nombre AS rol,
+        er.nombre AS estado
+      FROM usuarios u
+      INNER JOIN roles r
+        ON r.idRol = u.idRol
+      INNER JOIN estados_registro er
+        ON er.idEstadoRegistro = u.idEstadoRegistro
+      WHERE u.idUsuario = ?
+        AND u.deleted_at IS NULL
+      LIMIT 1
+      `,
       [userId]
     );
 
@@ -55,19 +70,33 @@ export const authMiddleware = async (req, res, next) => {
 
     const user = rows[0];
 
-    // 🛡️ REFUERZO DE SEGURIDAD: Chequeo de estado suspendido
-    // Si el usuario existe pero el administrador lo suspendió, no lo dejamos pasar.
-    console.log("🛡️ Middleware revisando estado de:", user.correo, "Estado:", user.estado);
-    if (user.estado !== 'activo') {
-      return res.status(403).json({ 
-        ok: false, 
+    console.log(
+      "🛡️ Middleware revisando estado de:",
+      user.correo,
+      "Estado:",
+      user.estado
+    );
+
+    if (user.estado !== "activo") {
+      return res.status(403).json({
+        ok: false,
         error: "Tu cuenta no está activa. Contacta al administrador.",
-        isSuspended: true 
+        isSuspended: true,
       });
     }
 
-    // 5) Adjuntar usuario a la request
-    req.user = user;
+    // 5) Adjuntar usuario a la request manteniendo compatibilidad
+    req.user = {
+      idUsuario: user.idUsuario,
+      id: user.idUsuario,
+      nombre: user.nombre,
+      apellido: user.apellido,
+      correo: user.correo,
+      foto: user.foto,
+      cuit: user.cuit,
+      rol: user.rol,
+      estado: user.estado,
+    };
 
     return next();
   } catch (err) {

@@ -1,117 +1,171 @@
+// src/controllers/purchase.controller.js
 import { purchaseService } from "../services/purchase.service.js";
 import { userRepository } from "../repositories/user.repository.js";
-import jwt from "jsonwebtoken"; 
+import jwt from "jsonwebtoken";
 import { db } from "../config/db.js";
 
 export const purchaseController = {
-
-  /**
-   * GET /api/compras/admin
-   * Devuelve todas las compras del sistema con el total calculado (Solo para Admin).
-   */
   async getAllAdmin(req, res) {
     try {
-      // 1. Recibir parámetros de la URL
-      const { 
-        page = 1, 
-        limit = 10, 
-        estado = '', 
-        cliente = '', 
-        fechaDesde = '', 
-        fechaHasta = '',
-        sort = 'DESC' // 👈 Nuevo parámetro de orden (por defecto DESC)
+      const {
+        page = 1,
+        limit = 10,
+        estado = "",
+        cliente = "",
+        fechaDesde = "",
+        fechaHasta = "",
+        sort = "DESC",
       } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
       const limitNumber = Number(limit);
+      const orderDir = sort.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
-      // Validamos el sentido del ordenamiento para evitar inyección SQL
-      const orderDir = sort.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-      // 2. Definimos las tablas y relaciones (FROM/JOIN)
-      let fromTables = `
+      const fromTables = `
         FROM compras c
-        JOIN usuarios u ON c.idUsuario = u.idUsuario
-        LEFT JOIN items_compra ic ON c.idCompra = ic.idCompra
+
+        INNER JOIN usuarios u
+          ON c.idUsuario = u.idUsuario
+
+        LEFT JOIN items_compra ic
+          ON c.idCompra = ic.idCompra
+         AND ic.deleted_at IS NULL
+
+        LEFT JOIN estados_pago ep
+          ON ep.idEstadoPago = c.idEstadoPago
+
+        LEFT JOIN estados_registro er
+          ON er.idEstadoRegistro = c.idEstadoRegistro
       `;
 
-      // 3. Definimos la cláusula de filtros (WHERE)
-      let whereClause = ` WHERE 1=1`;
+      let whereClause = `
+        WHERE c.deleted_at IS NULL
+      `;
+
       const queryParams = [];
 
       if (estado) {
-        whereClause += ` AND TRIM(c.estadoPago) = TRIM(?)`;
-        queryParams.push(estado);
+        whereClause += `
+          AND (
+            ep.nombre = ?
+            OR er.nombre = ?
+          )
+        `;
+        queryParams.push(estado, estado);
       }
+
       if (cliente) {
-        whereClause += ` AND (u.nombre LIKE ? OR u.correo LIKE ?)`;
+        whereClause += `
+          AND (
+            u.nombre LIKE ?
+            OR u.correo LIKE ?
+          )
+        `;
         queryParams.push(`%${cliente}%`, `%${cliente}%`);
       }
+
       if (fechaDesde) {
-        whereClause += ` AND DATE(c.fecha) >= ?`;
+        whereClause += `
+          AND DATE(c.fecha) >= ?
+        `;
         queryParams.push(fechaDesde);
       }
+
       if (fechaHasta) {
-        whereClause += ` AND DATE(c.fecha) <= ?`;
+        whereClause += `
+          AND DATE(c.fecha) <= ?
+        `;
         queryParams.push(fechaHasta);
       }
 
-      // 4. Contar el total de registros únicos para la paginación
-      const countQuery = `SELECT COUNT(DISTINCT c.idCompra) as total ${fromTables} ${whereClause}`;
-      const [countResult] = await db.query(countQuery, queryParams);
-      const totalRegistros = countResult[0].total;
-
-      // 5. Calcular Ingresos Globales (Solo de pagos 'approved' que cumplan los filtros)
-      const incomeQuery = `
-        SELECT COALESCE(SUM(ic.precioUnitario * ic.cantidad), 0) as ingresosGlobales
-        ${fromTables}
-        ${whereClause} AND TRIM(c.estadoPago) = 'approved'
-      `;
-      const [incomeResult] = await db.query(incomeQuery, queryParams);
-      const ingresosGlobales = incomeResult[0].ingresosGlobales;
-
-      // 6. Consulta de datos para la página actual con ORDEN DINÁMICO
-      const dataQuery = `
-        SELECT 
-          c.idCompra, 
-          c.fecha, 
-          c.estadoPago, 
-          c.idTransaccionMP,
-          u.nombre AS nombreUsuario, 
-          u.correo,
-          COALESCE(SUM(ic.precioUnitario * ic.cantidad), 0) AS total
+      const countQuery = `
+        SELECT COUNT(DISTINCT c.idCompra) AS total
         ${fromTables}
         ${whereClause}
-        GROUP BY c.idCompra
-        ORDER BY c.fecha ${orderDir} 
-        LIMIT ? OFFSET ?
       `;
 
-      const [ventas] = await db.query(dataQuery, [...queryParams, limitNumber, offset]);
+      const [countResult] = await db.query(countQuery, queryParams);
+      const totalRegistros = countResult[0]?.total || 0;
 
-      // 7. Respuesta estructurada
-      res.json({
+      const incomeQuery = `
+        SELECT
+          COALESCE(SUM(ic.subtotal), 0) AS ingresosGlobales
+        ${fromTables}
+        ${whereClause}
+      `;
+
+      const [incomeResult] = await db.query(incomeQuery, queryParams);
+      const ingresosGlobales = incomeResult[0]?.ingresosGlobales || 0;
+
+      const dataQuery = `
+        SELECT
+          c.idCompra,
+          c.fecha AS fechaCompra,
+          c.total,
+
+          ep.nombre AS estadoPago,
+          er.nombre AS estadoRegistro,
+
+          c.idTransaccionMP,
+
+          u.nombre AS nombreUsuario,
+          u.correo,
+
+          COALESCE(SUM(ic.subtotal), c.total, 0) AS totalCalculado
+
+        ${fromTables}
+
+        ${whereClause}
+
+        GROUP BY
+          c.idCompra,
+          c.fecha,
+          c.total,
+          ep.nombre,
+          er.nombre,
+          c.idTransaccionMP,
+          u.nombre,
+          u.correo
+
+        ORDER BY c.fecha ${orderDir}
+
+        LIMIT ?
+        OFFSET ?
+      `;
+
+      const [ventas] = await db.query(dataQuery, [
+        ...queryParams,
+        limitNumber,
+        offset,
+      ]);
+
+      const ventasNormalizadas = ventas.map((venta) => ({
+        ...venta,
+        total: Number(venta.totalCalculado || venta.total || 0),
+        estado: venta.estadoPago || venta.estadoRegistro,
+      }));
+
+      return res.json({
         ok: true,
-        ventas,
+        ventas: ventasNormalizadas,
         ingresosGlobales,
         paginacion: {
           total: totalRegistros,
           paginas: Math.ceil(totalRegistros / limitNumber),
           paginaActual: Number(page),
-          limite: limitNumber
-        }
+          limite: limitNumber,
+        },
       });
-
     } catch (err) {
       console.error("❌ Error en purchaseController.getAllAdmin:", err);
-      res.status(500).json({ ok: false, error: "Error interno del servidor" });
+
+      return res.status(500).json({
+        ok: false,
+        error: "Error interno del servidor",
+      });
     }
   },
-  
-  /**
-   * POST /api/compras
-   * Crea una compra completa del usuario autenticado.
-   */
+
   async create(req, res) {
     try {
       const idUsuario = req.user.idUsuario || req.user.id;
@@ -139,12 +193,11 @@ export const purchaseController = {
         });
       }
 
-      const idCarrito = Number(user.idCarrito);
       const { idMetodoPago = 1 } = req.body;
 
       const result = await purchaseService.createPurchase({
         idUsuario,
-        idCarrito,
+        idCarrito: Number(user.idCarrito),
         idMetodoPago,
       });
 
@@ -161,6 +214,7 @@ export const purchaseController = {
       });
     } catch (err) {
       console.error("❌ Error en purchaseController.create:", err);
+
       return res.status(500).json({
         ok: false,
         error: "Error interno al procesar la compra",
@@ -168,18 +222,19 @@ export const purchaseController = {
     }
   },
 
-  /**
-   * GET /api/compras/mias
-   * Devuelve todas las compras del usuario autenticado.
-   */
   async getMyPurchases(req, res) {
     try {
       const idUsuario = req.user.idUsuario || req.user.id;
+
       const compras = await purchaseService.getMyPurchases(idUsuario);
 
-      return res.json({ ok: true, compras });
+      return res.json({
+        ok: true,
+        compras,
+      });
     } catch (err) {
       console.error("❌ Error en getMyPurchases:", err);
+
       return res.status(500).json({
         ok: false,
         error: "No se pudieron obtener las compras",
@@ -187,10 +242,6 @@ export const purchaseController = {
     }
   },
 
-  /**
-   * GET /api/compras/:idCompra/descargar
-   * Descarga un ZIP con todas las imágenes (Botón Web "Mis Compras").
-   */
   async download(req, res) {
     try {
       const idUsuario = req.user.idUsuario || req.user.id;
@@ -207,6 +258,7 @@ export const purchaseController = {
       zipStream.pipe(res);
     } catch (err) {
       console.error("❌ Error en purchaseController.download:", err);
+
       return res.status(500).json({
         ok: false,
         error: "No se pudo generar el archivo ZIP",
@@ -214,63 +266,48 @@ export const purchaseController = {
     }
   },
 
-  /**
-   * GET /api/compras/public/download/:id
-   * Descarga segura desde el enlace del correo.
-   */
   async downloadPurchaseZipPublic(req, res) {
     try {
       const { id } = req.params;
-      const idTransaccionMP = id; // 👈 Ahora sabemos que este es el ID largo de MP
+      const idTransaccionMP = id;
       const { token } = req.query;
 
-      console.log(`🔍 Petición de descarga pública recibida. ID Transacción MP: ${idTransaccionMP}`);
-
       if (!token) {
-        return res.status(403).send("<h1>Enlace inválido 🚫</h1><p>Falta el token de seguridad.</p>");
+        return res.status(403).send("<h1>Enlace inválido</h1>");
       }
 
-      // 1. Verificamos que el token sea válido
       let decoded;
+
       try {
         decoded = jwt.verify(token, process.env.JWT_SECRET);
-      } catch (err) {
-        return res.status(403).send("<h1>Enlace expirado ⏳</h1><p>El link de descarga ha vencido o es inválido.</p>");
+      } catch {
+        return res.status(403).send("<h1>Token inválido o expirado</h1>");
       }
 
-      // 2. Verificamos que el token corresponda a ESTA compra
       if (String(decoded.compraId) !== String(idTransaccionMP)) {
-         return res.status(403).send("<h1>Acceso denegado 🔒</h1><p>Este token no corresponde a esta compra.</p>");
+        return res.status(403).send("<h1>Acceso denegado</h1>");
       }
 
-      console.log(`✅ Token verificado. Autorizando descarga para email: ${decoded.email}`);
-
-      // ============================================================
-      // 🧪 BLOQUE MÁGICO PARA PRUEBAS
-      // ============================================================
-      if (idTransaccionMP === "999999") {
-        console.log("🧪 Simulación ACTIVADA: Enviando archivo de prueba.");
-        res.setHeader("Content-Type", "text/plain");
-        res.setHeader("Content-Disposition", "attachment; filename=prueba_exitosa.txt");
-        return res.send("¡HOLA! 👋\n\nSi estás leyendo esto, significa que el sistema está 100% operativo.");
-      }
-      // ============================================================
-
-      // 3. Buscar el ID interno de la base de datos usando el ID de Mercado Pago
       const [compraRows] = await db.query(
-        "SELECT idCompra, idUsuario FROM compras WHERE idTransaccionMP = ?", 
+        `
+        SELECT
+          idCompra,
+          idUsuario
+        FROM compras
+        WHERE idTransaccionMP = ?
+          AND deleted_at IS NULL
+        LIMIT 1
+        `,
         [idTransaccionMP]
       );
-      
+
       if (compraRows.length === 0) {
-        return res.status(404).send("<h1>Compra no encontrada 🕵️‍♂️</h1><p>La compra ya no existe en el sistema.</p>");
+        return res.status(404).send("<h1>Compra no encontrada</h1>");
       }
 
-      const idUsuarioReal = compraRows[0].idUsuario;
-      const idCompraInterno = compraRows[0].idCompra; // El ID chiquito (ej: 8)
+      const { idCompra, idUsuario } = compraRows[0];
 
-      // 4. Generamos el ZIP con el ID interno
-      const zipStream = await purchaseService.generateZip(idCompraInterno, idUsuarioReal); 
+      const zipStream = await purchaseService.generateZip(idCompra, idUsuario);
 
       res.setHeader("Content-Type", "application/zip");
       res.setHeader(
@@ -279,10 +316,10 @@ export const purchaseController = {
       );
 
       zipStream.pipe(res);
-
     } catch (err) {
-      console.error("❌ Error en descarga pública:", err);
-      res.status(500).send("<h1>Error de servidor 💥</h1><p>No se pudo procesar la descarga de tus fotos.</p>");
+      console.error("❌ Error descarga pública:", err);
+
+      return res.status(500).send("<h1>Error interno</h1>");
     }
-  }
+  },
 };

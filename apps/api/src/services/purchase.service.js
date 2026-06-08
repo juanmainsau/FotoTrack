@@ -1,80 +1,103 @@
+// src/services/purchase.service.js
 import { purchaseRepository } from "../repositories/purchase.repository.js";
 import archiver from "archiver";
 import { db } from "../config/db.js";
 
 export const purchaseService = {
-  
-  // 1. MODIFICACIÓN: Agregamos idTransaccionMP a los argumentos recibidos
-  async createPurchase({ idUsuario, idCarrito, idMetodoPago, idTransaccionMP = null }) {
+  async createPurchase({
+    idUsuario,
+    idCarrito,
+    idMetodoPago,
+    idTransaccionMP = null,
+  }) {
     let connection;
 
     try {
       connection = await purchaseRepository.beginTransaction();
 
-      // 2. MODIFICACIÓN: Pasamos el idTransaccionMP y ponemos el estado como 'approved'
-      // ya que este servicio es llamado cuando Mercado Pago confirma el éxito.
-      const idCompra = await purchaseRepository.createPurchase(connection, {
-        idUsuario,
-        idMetodoPago,
-        idTransaccionMP, // 👈 Se guarda en el INSERT inicial
-        estadoPago: "approved", 
-      });
+      const idCompra = await purchaseRepository.createPurchase(
+        connection,
+        {
+          idUsuario,
+          idMetodoPago,
+          idTransaccionMP,
+        }
+      );
 
-      const cartItems = await purchaseRepository.getCartItems(idCarrito);
+      const cartItems =
+        await purchaseRepository.getCartItems(idCarrito);
 
-      if (cartItems.length === 0) {
+      if (!cartItems.length) {
         throw new Error("El carrito está vacío.");
       }
 
       for (const item of cartItems) {
-        await purchaseRepository.insertItem(connection, {
-          idCompra,
-          tipoProducto: item.tipoProducto,
-          idImagen: item.idImagen || null,
-          idAlbum: item.idAlbum || null,
-          cantidad: item.cantidad,
-          precioUnitario: item.precioUnitario,
-        });
+        await purchaseRepository.insertItem(
+          connection,
+          {
+            idCompra,
+
+            idTipoProducto:
+              item.idTipoProducto,
+
+            idImagen:
+              item.idImagen || null,
+
+            idAlbum:
+              item.idAlbum || null,
+
+            cantidad:
+              item.cantidad,
+
+            precioUnitario:
+              item.precioUnitario,
+
+            subtotal:
+              item.subtotal ??
+              item.precioUnitario *
+                item.cantidad,
+          }
+        );
       }
 
-      await purchaseRepository.clearCart(connection, idCarrito);
+      await purchaseRepository.clearCart(
+        connection,
+        idCarrito,
+        idUsuario
+      );
 
-      await purchaseRepository.commit(connection);
+      await purchaseRepository.commit(
+        connection
+      );
 
-      return { ok: true, idCompra };
-
+      return {
+        ok: true,
+        idCompra,
+      };
     } catch (err) {
-      console.error("❌ Error en purchaseService.createPurchase:", err);
+      console.error(
+        "❌ Error en purchaseService.createPurchase:",
+        err
+      );
 
       if (connection) {
-        await purchaseRepository.rollback(connection);
+        await purchaseRepository.rollback(
+          connection
+        );
       }
 
-      return { ok: false, error: err.message };
+      return {
+        ok: false,
+        error: err.message,
+      };
     }
   },
 
   async getMyPurchases(idUsuario) {
-    // MEJORA: Cambiamos a LEFT JOIN en 'imagenes' por si en el futuro vendes algo que no sea una foto suelta (ej: un pase o álbum).
-    const [rows] = await db.query(
-      `
-      SELECT 
-        c.idCompra,
-        c.fecha AS fechaCompra,
-        c.estadoPago,
-        ic.idItemCompra,
-        ic.tipoProducto,
-        ic.idImagen,
-        ic.precioUnitario,
-        i.rutaMiniatura
-      FROM compras c
-      JOIN items_compra ic ON c.idCompra = ic.idCompra
-      LEFT JOIN imagenes i ON ic.idImagen = i.idImagen
-      WHERE c.idUsuario = ?
-      ORDER BY c.fecha DESC
-      `,
-      [idUsuario]
-    );
+    const rows =
+      await purchaseRepository.getUserPurchases(
+        idUsuario
+      );
 
     const comprasMap = {};
 
@@ -83,86 +106,171 @@ export const purchaseService = {
         comprasMap[row.idCompra] = {
           idCompra: row.idCompra,
           fechaCompra: row.fechaCompra,
-          estadoPago: row.estadoPago,
+          metodoPago: row.metodoPago,
+          estado: row.estado,
           total: 0,
           items: [],
         };
       }
 
       comprasMap[row.idCompra].items.push({
-        idItemCompra: row.idItemCompra,
-        tipoProducto: row.tipoProducto,
-        idImagen: row.idImagen,
-        miniatura: row.rutaMiniatura || "https://via.placeholder.com/150?text=Sin+Imagen", 
-        precioUnitario: row.precioUnitario,
+        idItemCompra:
+          row.idItemCompra,
+
+        idTipoProducto:
+          row.idTipoProducto,
+
+        nombreProducto:
+          row.nombreProducto,
+
+        idImagen:
+          row.idImagen,
+
+        idAlbum:
+          row.idAlbum,
+
+        miniatura:
+          row.rutaMiniatura,
+
+        precioUnitario:
+          Number(
+            row.precioUnitario || 0
+          ),
+
+        subtotal:
+          Number(
+            row.subtotal || 0
+          ),
       });
 
-      comprasMap[row.idCompra].total += Number(row.precioUnitario);
+      comprasMap[row.idCompra].total +=
+        Number(
+          row.subtotal || 0
+        );
     }
 
-    return Object.values(comprasMap);
+    return Object.values(
+      comprasMap
+    );
   },
 
-  async generateZip(idCompra, idUsuario) {
-    // 1. Verificar compra y propiedad
-    const [compraRows] = await db.query(
-      "SELECT * FROM compras WHERE idCompra = ? AND idUsuario = ?",
-      [idCompra, idUsuario]
-    );
+  async generateZip(
+    idCompra,
+    idUsuario
+  ) {
+    const [compraRows] =
+      await db.query(
+        `
+        SELECT *
+        FROM compras
+        WHERE idCompra = ?
+          AND idUsuario = ?
+          AND deleted_at IS NULL
+        `,
+        [
+          idCompra,
+          idUsuario,
+        ]
+      );
 
-    if (compraRows.length === 0) {
-      throw new Error("Compra no encontrada o no tienes permisos para acceder a ella.");
+    if (
+      compraRows.length === 0
+    ) {
+      throw new Error(
+        "Compra no encontrada o sin permisos."
+      );
     }
 
-    // 2. Obtener imágenes originales
-    const [items] = await db.query(
-      `
-      SELECT i.rutaOriginal AS urlOriginal, i.idImagen
-      FROM items_compra ic
-      JOIN imagenes i ON ic.idImagen = i.idImagen
-      WHERE ic.idCompra = ? AND i.rutaOriginal IS NOT NULL
-      `,
-      [idCompra]
-    );
+    const [items] =
+      await db.query(
+        `
+        SELECT
+          i.idImagen,
+          i.rutaOriginal
+        FROM items_compra ic
 
-    if (items.length === 0) {
-      throw new Error("No hay imágenes válidas en esta compra.");
+        INNER JOIN imagenes i
+          ON i.idImagen = ic.idImagen
+
+        WHERE ic.idCompra = ?
+          AND ic.deleted_at IS NULL
+          AND i.deleted_at IS NULL
+          AND i.rutaOriginal IS NOT NULL
+        `,
+        [idCompra]
+      );
+
+    if (!items.length) {
+      throw new Error(
+        "No existen imágenes válidas para descargar."
+      );
     }
 
-    // 3. Inicializar Archiver
-    const archive = archiver("zip", { zlib: { level: 9 } });
+    const archive =
+      archiver("zip", {
+        zlib: { level: 9 },
+      });
 
-    archive.on("error", (err) => {
-      console.error("❌ Error interno del archiver:", err);
-      throw err;
-    });
+    archive.on(
+      "error",
+      (err) => {
+        console.error(
+          "❌ Archiver:",
+          err
+        );
+        throw err;
+      }
+    );
 
-    // 4. Descargar y adjuntar (Con manejo de errores individual)
-    for (let i = 0; i < items.length; i++) {
-      const { urlOriginal, idImagen } = items[i];
+    for (
+      let index = 0;
+      index < items.length;
+      index++
+    ) {
+      const item =
+        items[index];
 
       try {
-        const response = await fetch(urlOriginal);
-        
-        if (!response.ok) {
-          console.warn(`⚠️ Omitiendo imagen ${idImagen}: URL inaccesible (${response.status})`);
-          continue; 
+        const response =
+          await fetch(
+            item.rutaOriginal
+          );
+
+        if (
+          !response.ok
+        ) {
+          console.warn(
+            `⚠ Imagen ${item.idImagen} inaccesible`
+          );
+          continue;
         }
 
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
+        const arrayBuffer =
+          await response.arrayBuffer();
 
-        archive.append(buffer, {
-          name: `FotoTrack_${idImagen}_${i + 1}.jpg`,
-        });
-        
-      } catch (fetchError) {
-        console.error(`❌ Fallo al descargar la foto ID: ${idImagen}`, fetchError);
+        const buffer =
+          Buffer.from(
+            arrayBuffer
+          );
+
+        archive.append(
+          buffer,
+          {
+            name: `FotoTrack_${item.idImagen}_${
+              index + 1
+            }.jpg`,
+          }
+        );
+      } catch (err) {
+        console.error(
+          `❌ Error descargando imagen ${item.idImagen}`,
+          err
+        );
       }
     }
 
-    // 5. Finalizar y retornar el stream
-    archive.finalize(); 
-    return archive; 
-  }
+    archive.finalize();
+
+    return archive;
+  },
 };

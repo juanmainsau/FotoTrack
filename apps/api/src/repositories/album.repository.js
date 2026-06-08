@@ -1,14 +1,8 @@
-// src/repositories/album.repository.js
 import { db } from "../config/db.js";
 
 export const albumRepository = {
-
-  /**
-   * ADMIN → Obtiene TODOS los álbumes sin filtro
-   */
   async getAllAdmin() {
-    const [rows] = await db.query(
-      `
+    const [rows] = await db.query(`
       SELECT
         a.idAlbum,
         a.nombreEvento,
@@ -17,28 +11,29 @@ export const albumRepository = {
         a.descripcion,
         a.precioFoto,
         a.precioAlbum,
-        a.estado,
-        a.visibilidad,
+        er.nombre AS estado,
+        va.nombre AS visibilidad,
         a.tags,
         a.codigoInterno,
         a.fechaCarga,
-        COUNT(i.idImagen)        AS totalFotos,
-        MAX(i.rutaMiniatura)     AS miniatura
+        a.deleted_at,
+        COUNT(i.idImagen) AS totalFotos,
+        MAX(i.rutaMiniatura) AS miniatura
       FROM album a
-      LEFT JOIN imagenes i ON i.idAlbum = a.idAlbum
+      INNER JOIN estados_registro er ON er.idEstadoRegistro = a.idEstadoRegistro
+      INNER JOIN visibilidades_album va ON va.idVisibilidad = a.idVisibilidad
+      LEFT JOIN imagenes i 
+        ON i.idAlbum = a.idAlbum
+       AND i.deleted_at IS NULL
       GROUP BY a.idAlbum
       ORDER BY a.fechaEvento DESC, a.idAlbum DESC
-      `
-    );
+    `);
+
     return rows;
   },
 
-  /**
-   * USUARIO → Solo álbumes ACTIVO + PÚBLICO
-   */
   async getAllPublic() {
-    const [rows] = await db.query(
-      `
+    const [rows] = await db.query(`
       SELECT
         a.idAlbum,
         a.nombreEvento,
@@ -47,29 +42,30 @@ export const albumRepository = {
         a.descripcion,
         a.precioFoto,
         a.precioAlbum,
-        a.estado,
-        a.visibilidad,
+        er.nombre AS estado,
+        va.nombre AS visibilidad,
         a.tags,
         a.codigoInterno,
         a.fechaCarga,
-        COUNT(i.idImagen)        AS totalFotos,
-        MAX(i.rutaMiniatura)     AS miniatura
+        COUNT(i.idImagen) AS totalFotos,
+        MAX(i.rutaMiniatura) AS miniatura
       FROM album a
-      LEFT JOIN imagenes i ON i.idAlbum = a.idAlbum
-      WHERE a.estado = 'publicado'
-        AND a.visibilidad = 'Público'
+      INNER JOIN estados_registro er ON er.idEstadoRegistro = a.idEstadoRegistro
+      INNER JOIN visibilidades_album va ON va.idVisibilidad = a.idVisibilidad
+      LEFT JOIN imagenes i 
+        ON i.idAlbum = a.idAlbum
+       AND i.deleted_at IS NULL
+      WHERE a.deleted_at IS NULL
+        AND er.nombre = 'activo'
+        AND va.nombre = 'publico'
       GROUP BY a.idAlbum
       ORDER BY a.fechaEvento DESC, a.idAlbum DESC
-      `
-    );
+    `);
+
     return rows;
   },
 
-  /**
-   * 🔥 FUNCIÓN FALTANTE → usada por albumService.listAlbums()
-   */
   async getAll() {
-    // Por compatibilidad, devolvemos lo mismo que getAllAdmin()
     return this.getAllAdmin();
   },
 
@@ -77,12 +73,12 @@ export const albumRepository = {
     const {
       nombreEvento,
       fechaEvento,
-      localizacion,
-      descripcion,
+      localizacion = null,
+      descripcion = null,
       precioFoto = null,
       precioAlbum = null,
       estado = "activo",
-      visibilidad = "Público",
+      visibilidad = "publico",
       tags = null,
       codigoInterno = null,
     } = data;
@@ -90,10 +86,23 @@ export const albumRepository = {
     const [result] = await db.query(
       `
       INSERT INTO album (
-        nombreEvento, fechaEvento, localizacion, descripcion,
-        precioFoto, precioAlbum, estado, visibilidad, tags, codigoInterno
+        nombreEvento,
+        fechaEvento,
+        localizacion,
+        descripcion,
+        precioFoto,
+        precioAlbum,
+        idEstadoRegistro,
+        idVisibilidad,
+        tags,
+        codigoInterno
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (
+        ?, ?, ?, ?, ?, ?,
+        (SELECT idEstadoRegistro FROM estados_registro WHERE nombre = ? LIMIT 1),
+        (SELECT idVisibilidad FROM visibilidades_album WHERE nombre = ? LIMIT 1),
+        ?, ?
+      )
       `,
       [
         nombreEvento,
@@ -112,16 +121,45 @@ export const albumRepository = {
     return { idAlbum: result.insertId };
   },
 
-  async findById(idAlbum) {
+  async updateCodigoInterno(idAlbum, codigoInterno) {
+    await db.query(
+      `
+      UPDATE album
+      SET codigoInterno = ?
+      WHERE idAlbum = ?
+        AND deleted_at IS NULL
+      `,
+      [codigoInterno, idAlbum]
+    );
+  },
+
+  async findById(idAlbum, includeDeleted = false) {
     const [rows] = await db.query(
       `
       SELECT
-        a.*,
-        COUNT(i.idImagen)    AS totalFotos,
+        a.idAlbum,
+        a.nombreEvento,
+        a.fechaEvento,
+        a.localizacion,
+        a.descripcion,
+        a.precioFoto,
+        a.precioAlbum,
+        er.nombre AS estado,
+        va.nombre AS visibilidad,
+        a.tags,
+        a.codigoInterno,
+        a.fechaCarga,
+        a.deleted_at,
+        COUNT(i.idImagen) AS totalFotos,
         MAX(i.rutaMiniatura) AS miniatura
       FROM album a
-      LEFT JOIN imagenes i ON i.idAlbum = a.idAlbum
+      INNER JOIN estados_registro er ON er.idEstadoRegistro = a.idEstadoRegistro
+      INNER JOIN visibilidades_album va ON va.idVisibilidad = a.idVisibilidad
+      LEFT JOIN imagenes i 
+        ON i.idAlbum = a.idAlbum
+       AND i.deleted_at IS NULL
       WHERE a.idAlbum = ?
+        ${includeDeleted ? "" : "AND a.deleted_at IS NULL"}
       GROUP BY a.idAlbum
       `,
       [idAlbum]
@@ -130,41 +168,6 @@ export const albumRepository = {
     return rows[0] || null;
   },
 
-  /**
-   * Borrado Lógico (Legacy)
-   * Lo dejamos por si en algún momento quieres solo archivar.
-   */
-  async eliminarAlbum(idAlbum) {
-    await db.query(
-      `
-      UPDATE album
-      SET estado = 'archivado'
-      WHERE idAlbum = ?
-      `,
-      [idAlbum]
-    );
-  },
-
-  /**
-   * 🗑️ BORRADO FÍSICO (Hard Delete)
-   * Elimina el registro de la BD para siempre.
-   * Se debe llamar DESPUÉS de limpiar Cloudinary en el servicio.
-   */
-  async deleteHard(idAlbum) {
-    // 1. Borrar items del carrito relacionados (para evitar error de Foreign Key)
-    await db.query("DELETE FROM items_carrito WHERE idAlbum = ?", [idAlbum]);
-    
-    // 2. Borrar las imágenes de la tabla imagenes
-    await db.query("DELETE FROM imagenes WHERE idAlbum = ?", [idAlbum]);
-
-    // 3. Borrar el álbum
-    const [result] = await db.query("DELETE FROM album WHERE idAlbum = ?", [idAlbum]);
-    return result;
-  },
-
-  /**
-   * ✏️ ACTUALIZAR
-   */
   async actualizarAlbum(idAlbum, data) {
     const {
       nombreEvento,
@@ -173,12 +176,12 @@ export const albumRepository = {
       descripcion,
       precioFoto = null,
       precioAlbum = null,
-      estado,
-      visibilidad,
-      tags,
+      estado = "activo",
+      visibilidad = "publico",
+      tags = null,
     } = data;
 
-    await db.query(
+    const [result] = await db.query(
       `
       UPDATE album
       SET
@@ -188,10 +191,21 @@ export const albumRepository = {
         descripcion = ?,
         precioFoto = ?,
         precioAlbum = ?,
-        estado = ?,
-        visibilidad = ?,
+        idEstadoRegistro = (
+          SELECT idEstadoRegistro 
+          FROM estados_registro 
+          WHERE nombre = ? 
+          LIMIT 1
+        ),
+        idVisibilidad = (
+          SELECT idVisibilidad 
+          FROM visibilidades_album 
+          WHERE nombre = ? 
+          LIMIT 1
+        ),
         tags = ?
       WHERE idAlbum = ?
+        AND deleted_at IS NULL
       `,
       [
         nombreEvento,
@@ -206,5 +220,37 @@ export const albumRepository = {
         idAlbum,
       ]
     );
+
+    return result;
+  },
+
+  async softDelete(idAlbum, deletedBy = null) {
+    const [result] = await db.query(
+      `
+      UPDATE album
+      SET
+        idEstadoRegistro = (
+          SELECT idEstadoRegistro 
+          FROM estados_registro 
+          WHERE nombre = 'eliminado' 
+          LIMIT 1
+        ),
+        deleted_at = NOW(),
+        deleted_by = ?
+      WHERE idAlbum = ?
+        AND deleted_at IS NULL
+      `,
+      [deletedBy, idAlbum]
+    );
+
+    return result;
+  },
+
+  async eliminarAlbum(idAlbum, deletedBy = null) {
+    return this.softDelete(idAlbum, deletedBy);
+  },
+
+  async deleteHard(idAlbum, deletedBy = null) {
+    return this.softDelete(idAlbum, deletedBy);
   },
 };

@@ -18,28 +18,59 @@ export function ExploreAlbumsPage() {
     async function load() {
       try {
         setLoading(true);
+
         const data = await fetchAlbums();
-        const activos = data.filter(a => a.estado === "Publicado");
+
+        // 🔥 NUEVA LÓGICA DB V2
+        const activos = data.filter(
+          (a) =>
+            String(a.estado).toLowerCase() === "activo" &&
+            String(a.visibilidad).toLowerCase() === "publico"
+        );
+
         setAlbums(activos);
 
         const imagesByAlbum = {};
+
         for (const album of activos) {
           try {
-            const res = await fetch(`http://localhost:4000/api/imagenes/album/${album.idAlbum}`);
+            const res = await fetch(
+              `http://localhost:4000/api/imagenes/album/${album.idAlbum}?t=${Date.now()}`,
+              {
+                cache: "no-store",
+              }
+            );
+
             const imgs = await res.json();
-            const imagenes = imgs.ok ? imgs.imagenes : imgs;
-            imagesByAlbum[album.idAlbum] = { count: imagenes.length, thumbnail: imagenes[0]?.rutaMiniatura || null };
+
+            const imagenes = imgs.ok
+              ? imgs.imagenes || []
+              : Array.isArray(imgs)
+              ? imgs
+              : [];
+
+            imagesByAlbum[album.idAlbum] = {
+              count: imagenes.length,
+              thumbnail: imagenes[0]?.rutaMiniatura || null,
+            };
           } catch {
-            imagesByAlbum[album.idAlbum] = { count: 0, thumbnail: null };
+            imagesByAlbum[album.idAlbum] = {
+              count: 0,
+              thumbnail: null,
+            };
           }
         }
+
         setAlbumImages(imagesByAlbum);
       } catch (err) {
+        console.error("❌ Error cargando álbumes:", err);
+
         setError("No se pudieron cargar los álbumes.");
       } finally {
         setLoading(false);
       }
     }
+
     load();
   }, []);
 

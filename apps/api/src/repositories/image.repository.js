@@ -1,48 +1,74 @@
-// src/repositories/image.repository.js
 import { db } from "../config/db.js";
 
 export const imageRepository = {
-  
-  // ⭐ ACTUALIZADO: Recibe y guarda los 3 IDs de Cloudinary
   async create(data) {
     const {
       idAlbum,
       rutaOriginal,
       rutaMiniatura,
       rutaOptimizado,
-      public_id,           // ID Original (ya existía)
-      public_id_thumb,     // ID Miniatura (NUEVO)
-      public_id_optimized  // ID Optimizada (NUEVO)
+      public_id = null,
+      public_id_thumb = null,
+      public_id_optimized = null,
+      estado = "activo",
     } = data;
 
     const [result] = await db.query(
       `
-      INSERT INTO imagenes 
-      (idAlbum, rutaOriginal, rutaMiniatura, rutaOptimizado, public_id, public_id_thumb, public_id_optimized)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
+      INSERT INTO imagenes (
         idAlbum,
+        idEstadoRegistro,
         rutaOriginal,
         rutaMiniatura,
         rutaOptimizado,
         public_id,
         public_id_thumb,
         public_id_optimized
+      )
+      VALUES (
+        ?,
+        (SELECT idEstadoRegistro FROM estados_registro WHERE nombre = ? LIMIT 1),
+        ?, ?, ?, ?, ?, ?
+      )
+      `,
+      [
+        idAlbum,
+        estado,
+        rutaOriginal,
+        rutaMiniatura,
+        rutaOptimizado,
+        public_id,
+        public_id_thumb,
+        public_id_optimized,
       ]
     );
 
-    return { idImagen: result.insertId, ...data };
+    return {
+      idImagen: result.insertId,
+      ...data,
+    };
   },
 
-  // Los métodos de lectura se mantienen igual (SELECT * traerá las nuevas columnas automáticamente)
-  async getByAlbum(idAlbum) {
+  async getByAlbum(idAlbum, includeDeleted = false) {
     const [rows] = await db.query(
       `
-      SELECT *
-      FROM imagenes
-      WHERE idAlbum = ?
-      ORDER BY idImagen DESC
+      SELECT
+        i.idImagen,
+        i.idAlbum,
+        i.rutaOriginal,
+        i.rutaMiniatura,
+        i.rutaOptimizado,
+        i.public_id,
+        i.public_id_thumb,
+        i.public_id_optimized,
+        i.fechaCarga,
+        i.deleted_at,
+        er.nombre AS estado
+      FROM imagenes i
+      INNER JOIN estados_registro er ON er.idEstadoRegistro = i.idEstadoRegistro
+      WHERE i.idAlbum = ?
+        ${includeDeleted ? "" : "AND i.deleted_at IS NULL"}
+      ORDER BY i.idImagen DESC
       `,
       [idAlbum]
     );
@@ -50,26 +76,56 @@ export const imageRepository = {
     return rows;
   },
 
-  async getImageById(idImagen) {
+  async getImageById(idImagen, includeDeleted = false) {
     const [rows] = await db.query(
       `
-      SELECT *
-      FROM imagenes
-      WHERE idImagen = ?
+      SELECT
+        i.idImagen,
+        i.idAlbum,
+        i.rutaOriginal,
+        i.rutaMiniatura,
+        i.rutaOptimizado,
+        i.public_id,
+        i.public_id_thumb,
+        i.public_id_optimized,
+        i.fechaCarga,
+        i.deleted_at,
+        er.nombre AS estado
+      FROM imagenes i
+      INNER JOIN estados_registro er ON er.idEstadoRegistro = i.idEstadoRegistro
+      WHERE i.idImagen = ?
+        ${includeDeleted ? "" : "AND i.deleted_at IS NULL"}
       LIMIT 1
       `,
       [idImagen]
     );
-    return rows[0];
+
+    return rows[0] || null;
   },
 
-  async deleteImageById(idImagen) {
-    await db.query(
+  async softDeleteImageById(idImagen, deletedBy = null) {
+    const [result] = await db.query(
       `
-      DELETE FROM imagenes
+      UPDATE imagenes
+      SET
+        idEstadoRegistro = (
+          SELECT idEstadoRegistro
+          FROM estados_registro
+          WHERE nombre = 'eliminado'
+          LIMIT 1
+        ),
+        deleted_at = NOW(),
+        deleted_by = ?
       WHERE idImagen = ?
+        AND deleted_at IS NULL
       `,
-      [idImagen]
+      [deletedBy, idImagen]
     );
+
+    return result;
+  },
+
+  async deleteImageById(idImagen, deletedBy = null) {
+    return this.softDeleteImageById(idImagen, deletedBy);
   },
 };

@@ -1,26 +1,31 @@
-// src/controllers/album.controller.js
 import { albumService } from "../services/album.service.js";
-import { db } from "../config/db.js";
+import { albumRepository } from "../repositories/album.repository.js";
 import { imageService } from "../services/image.service.js";
 import { faceService } from "../services/face.service.js";
-import fs from "fs/promises"; 
+import fs from "fs/promises";
+
+function getUserId(req) {
+  return req.user?.idUsuario || req.user?.id || null;
+}
+
+function isAdmin(req) {
+  return req.user?.rol === "admin";
+}
 
 export const albumController = {
-
   async getAll(req, res) {
     try {
-      const albums = await albumService.listAlbums();
-      
-      // 🛡️ FILTRO DE BAJA LÓGICA: 
-      if (!req.user || req.user.rol !== 'admin') {
-        const albumsActivos = albums.filter(a => a.estado !== 'oculto');
-        return res.json(albumsActivos);
-      }
+      const albums = isAdmin(req)
+        ? await albumService.listAlbums()
+        : await albumService.listPublicAlbums();
 
       return res.json(albums);
     } catch (err) {
       console.error("Error en getAll:", err);
-      return res.status(500).json({ ok: false, error: "Error al obtener álbumes" });
+      return res.status(500).json({
+        ok: false,
+        error: "Error al obtener álbumes",
+      });
     }
   },
 
@@ -30,92 +35,87 @@ export const albumController = {
       const album = await albumService.getAlbumById(id);
 
       if (!album) {
-        return res.status(404).json({ ok: false, error: "Álbum no encontrado" });
+        return res.status(404).json({
+          ok: false,
+          error: "Álbum no encontrado",
+        });
       }
 
-      if (album.estado === 'oculto' && (!req.user || req.user.rol !== 'admin')) {
-        return res.status(403).json({ ok: false, error: "Este evento ya no se encuentra disponible" });
+      if (!isAdmin(req) && album.visibilidad !== "publico") {
+        return res.status(403).json({
+          ok: false,
+          error: "Este evento no se encuentra disponible",
+        });
       }
 
       return res.json({ ok: true, album });
     } catch (err) {
       console.error("Error en getById:", err);
-      return res.status(500).json({ ok: false, error: "Error al obtener álbum" });
+      return res.status(500).json({
+        ok: false,
+        error: "Error al obtener álbum",
+      });
     }
   },
 
   async create(req, res) {
     try {
-      const albumData = req.body;
-      const nuevoAlbum = await albumService.createAlbum(albumData);
-      return res.status(201).json({ ok: true, ...nuevoAlbum });
+      const nuevoAlbum = await albumService.createAlbum(req.body);
+
+      const codigoInterno = `ALB-${String(nuevoAlbum.idAlbum).padStart(4, "0")}`;
+      await albumRepository.updateCodigoInterno(nuevoAlbum.idAlbum, codigoInterno);
+
+      return res.status(201).json({
+        ok: true,
+        idAlbum: nuevoAlbum.idAlbum,
+        codigoInterno,
+      });
     } catch (err) {
       console.error("Error en create:", err);
-      return res.status(400).json({ ok: false, error: err.message || "Error al crear el álbum" });
+      return res.status(400).json({
+        ok: false,
+        error: err.message || "Error al crear el álbum",
+      });
     }
   },
 
-  // 🗑️ BAJA LÓGICA (SOFT DELETE)
   async eliminar(req, res) {
     try {
       const { id } = req.params;
-      await db.execute("UPDATE album SET estado = 'oculto' WHERE idAlbum = ?", [id]);
-      
+      const deletedBy = getUserId(req);
+
+      const result = await albumService.softDeleteAlbum(id, deletedBy);
+
+      if (result.affectedRows === 0) {
+        return res.status(404).json({
+          ok: false,
+          error: "Álbum no encontrado o ya eliminado",
+        });
+      }
+
       return res.json({
         ok: true,
-        message: "Álbum ocultado correctamente.",
+        message: "Álbum eliminado correctamente mediante baja lógica.",
       });
     } catch (err) {
       console.error("Error en eliminar:", err);
-      return res.status(500).json({ ok: false, error: "Error al ocultar el álbum" });
+      return res.status(500).json({
+        ok: false,
+        error: err.message || "Error al eliminar el álbum",
+      });
     }
   },
 
-  // ✅ ACTUALIZADO: Persistencia directa para asegurar cambio de Estado y Precios
   async actualizar(req, res) {
     try {
       const { id } = req.params;
-      const { 
-        nombreEvento, 
-        fechaEvento, 
-        localizacion, 
-        descripcion, 
-        precioFoto, 
-        precioAlbum, 
-        estado, 
-        visibilidad, 
-        tags 
-      } = req.body;
-
-      // Realizamos el UPDATE directamente para evitar que el service ignore campos nuevos
-      const [result] = await db.execute(
-        `UPDATE album 
-         SET nombreEvento = ?, 
-             fechaEvento = ?, 
-             localizacion = ?, 
-             descripcion = ?, 
-             precioFoto = ?, 
-             precioAlbum = ?, 
-             estado = ?, 
-             visibilidad = ?, 
-             tags = ?
-         WHERE idAlbum = ?`,
-        [
-          nombreEvento, 
-          fechaEvento, 
-          localizacion, 
-          descripcion, 
-          precioFoto, 
-          precioAlbum, 
-          estado, 
-          visibilidad, 
-          tags, 
-          id
-        ]
-      );
+      const result = await albumService.actualizarAlbum(id, req.body);
 
       if (result.affectedRows === 0) {
-        return res.status(404).json({ ok: false, error: "No se encontró el álbum para actualizar" });
+        return res.status(404).json({
+          ok: false,
+          error: "No se encontró el álbum para actualizar",
+        });
       }
 
       return res.json({
@@ -126,84 +126,109 @@ export const albumController = {
       console.error("Error en actualizar:", err);
       return res.status(400).json({
         ok: false,
-        error: "Error al actualizar álbum en la base de datos",
+        error: err.message || "Error al actualizar álbum",
       });
     }
   },
 
-  // ⭐ Crear álbum + imágenes + IA
   async createComplete(req, res) {
+    let idAlbum = null;
+
     try {
-      const metadata = JSON.parse(req.body.metadata);
-      const { nombreEvento, fechaEvento, localizacion, descripcion, precioFoto, precioAlbum, estado, visibilidad, tags } = metadata;
+      const metadata = JSON.parse(req.body.metadata || "{}");
 
-      const [result] = await db.execute(
-        `INSERT INTO album (
-          nombreEvento, fechaEvento, localizacion, descripcion,
-          precioFoto, precioAlbum, estado, visibilidad, tags
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [nombreEvento, fechaEvento, localizacion, descripcion, precioFoto, precioAlbum, estado, visibilidad, tags]
-      );
+      const nuevoAlbum = await albumService.createAlbum(metadata);
+      idAlbum = nuevoAlbum.idAlbum;
 
-      const idAlbum = result.insertId;
-      const codigoInterno = `ALB-${idAlbum.toString().padStart(4, "0")}`;
-      await db.execute("UPDATE album SET codigoInterno = ? WHERE idAlbum = ?", [codigoInterno, idAlbum]);
+      const codigoInterno = `ALB-${String(idAlbum).padStart(4, "0")}`;
+      await albumRepository.updateCodigoInterno(idAlbum, codigoInterno);
 
       const files = req.files || [];
-      console.log(`🚀 Procesando secuencialmente ${files.length} imágenes para el álbum ${idAlbum}...`);
 
-      // ✅ FIX: Reemplazado Promise.all por for...of para evitar Error 502
+      console.log(
+        `🚀 Procesando secuencialmente ${files.length} imágenes para el álbum ${idAlbum}...`
+      );
+
       for (const file of files) {
         try {
           const savedImage = await imageService.processSingleImage(file, idAlbum);
-          
-          if (savedImage && savedImage.idImagen) {
-            // El 'await' aquí es la clave para que la IA no ahogue al servidor
-            await faceService.processAndIndexImage(file.path, savedImage.idImagen)
-              .then(matches => {
-                 if (matches > 0) console.log(`🤖 [IA] MATCH en img ${savedImage.idImagen}`);
+
+          if (savedImage?.idImagen) {
+            await faceService
+              .processAndIndexImage(file.path, savedImage.idImagen)
+              .then((matches) => {
+                if (matches > 0) {
+                  console.log(`🤖 [IA] MATCH en img ${savedImage.idImagen}`);
+                }
               })
-              .catch(err => console.error(`❌ [IA] Error en img ${savedImage.idImagen}:`, err));
+              .catch((err) =>
+                console.error(`❌ [IA] Error en img ${savedImage.idImagen}:`, err)
+              );
           }
         } catch (error) {
           console.error(`Error procesando archivo ${file.originalname}:`, error);
         } finally {
-          // Eliminamos el archivo pase lo que pase, usando await
           await fs.unlink(file.path).catch(() => {});
         }
       }
 
-      return res.json({ success: true, idAlbum, codigoInterno });
-
+      return res.json({
+        success: true,
+        ok: true,
+        idAlbum,
+        codigoInterno,
+      });
     } catch (err) {
       console.error("Error en createComplete:", err);
-      return res.status(500).json({ success: false, error: err.message });
+
+      return res.status(500).json({
+        success: false,
+        ok: false,
+        error: err.message || "Error al crear álbum completo",
+      });
     }
   },
-  
+
   async addImagesToAlbum(req, res) {
     try {
       const { id } = req.params;
       const idAlbum = Number(id);
       const files = req.files || [];
 
-      if (files.length === 0) {
-        return res.status(400).json({ ok: false, error: "No se enviaron imágenes" });
+      const album = await albumService.getAlbumById(idAlbum);
+      if (!album) {
+        return res.status(404).json({
+          ok: false,
+          error: "Álbum no encontrado o eliminado",
+        });
       }
 
-      console.log(`🚀 Añadiendo secuencialmente ${files.length} imágenes al álbum ID: ${idAlbum}...`);
+      if (files.length === 0) {
+        return res.status(400).json({
+          ok: false,
+          error: "No se enviaron imágenes",
+        });
+      }
 
-      // ✅ FIX: Reemplazado Promise.all por for...of para evitar Error 502
+      console.log(
+        `🚀 Añadiendo secuencialmente ${files.length} imágenes al álbum ID: ${idAlbum}...`
+      );
+
       for (const file of files) {
         try {
           const savedImage = await imageService.processSingleImage(file, idAlbum);
-          
-          if (savedImage && savedImage.idImagen) {
-            await faceService.processAndIndexImage(file.path, savedImage.idImagen)
-              .then(matches => {
-                 console.log(`🤖 [IA] Procesada img ${savedImage.idImagen}. Matches: ${matches}`);
+
+          if (savedImage?.idImagen) {
+            await faceService
+              .processAndIndexImage(file.path, savedImage.idImagen)
+              .then((matches) => {
+                console.log(
+                  `🤖 [IA] Procesada img ${savedImage.idImagen}. Matches: ${matches}`
+                );
               })
-              .catch(err => console.error(`❌ [IA] Error en img ${savedImage.idImagen}:`, err));
+              .catch((err) =>
+                console.error(`❌ [IA] Error en img ${savedImage.idImagen}:`, err)
+              );
           }
         } catch (error) {
           console.error(`❌ Error en archivo ${file.originalname}:`, error);
@@ -212,11 +237,16 @@ export const albumController = {
         }
       }
 
-      return res.json({ ok: true, message: "Imágenes añadidas y procesadas por IA" });
-
+      return res.json({
+        ok: true,
+        message: "Imágenes añadidas y procesadas por IA",
+      });
     } catch (err) {
       console.error("🔴 Error crítico en addImagesToAlbum:", err);
-      return res.status(500).json({ ok: false, error: "Error interno al procesar imágenes" });
+      return res.status(500).json({
+        ok: false,
+        error: "Error interno al procesar imágenes",
+      });
     }
   },
 
@@ -225,35 +255,49 @@ export const albumController = {
       const { id } = req.params;
       const idAlbum = Number(id);
 
-      const [imagenes] = await db.execute(
-        "SELECT idImagen, rutaOriginal FROM imagenes WHERE idAlbum = ?", 
-        [idAlbum]
-      );
+      const album = await albumService.getAlbumById(idAlbum);
+      if (!album) {
+        return res.status(404).json({
+          ok: false,
+          error: "Álbum no encontrado o eliminado",
+        });
+      }
 
-      if (imagenes.length === 0) {
-        return res.status(404).json({ ok: false, error: "Este álbum no tiene fotos." });
+      const imagenes = await imageService.getImagesByAlbum(idAlbum);
+
+      if (!imagenes || imagenes.length === 0) {
+        return res.status(404).json({
+          ok: false,
+          error: "Este álbum no tiene fotos.",
+        });
       }
 
       console.log(`🔄 Re-escaneando ${imagenes.length} fotos para el álbum ${idAlbum}...`);
 
       let totalDetecciones = 0;
+
       for (const img of imagenes) {
         try {
-          const numCaras = await faceService.processAndIndexImage(img.rutaOriginal, img.idImagen);
+          const numCaras = await faceService.processAndIndexImage(
+            img.rutaOriginal,
+            img.idImagen
+          );
           totalDetecciones += numCaras;
         } catch (err) {
           console.error(`❌ Error en imagen ${img.idImagen}:`, err.message);
         }
       }
 
-      return res.json({ 
-        ok: true, 
-        message: `Sincronización exitosa. Se detectaron ${totalDetecciones} caras.` 
+      return res.json({
+        ok: true,
+        message: `Sincronización exitosa. Se detectaron ${totalDetecciones} caras.`,
       });
-
     } catch (error) {
       console.error("Error en reprocessAlbumIA:", error);
-      return res.status(500).json({ ok: false, error: "Error interno del servidor." });
+      return res.status(500).json({
+        ok: false,
+        error: "Error interno del servidor.",
+      });
     }
-  }
+  },
 };

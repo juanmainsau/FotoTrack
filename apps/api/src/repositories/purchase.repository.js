@@ -2,49 +2,69 @@
 import { db } from "../config/db.js";
 
 export const purchaseRepository = {
-  /**
-   * Inicia una transacción
-   */
   async beginTransaction() {
     const connection = await db.getConnection();
     await connection.beginTransaction();
     return connection;
   },
 
-  /**
-   * Guarda la compra en la tabla compras
-   * MODIFICACIÓN: Ahora incluye idTransaccionMP para evitar duplicados
-   */
-  async createPurchase(connection, { idUsuario, idMetodoPago, estadoPago, idTransaccionMP }) {
+  async createPurchase(connection, { idUsuario, idMetodoPago, idTransaccionMP = null }) {
     const [result] = await connection.execute(
-      `INSERT INTO compras (idUsuario, idMetodoPago, estadoPago, idTransaccionMP)
-       VALUES (?, ?, ?, ?)`,
-      [idUsuario, idMetodoPago, estadoPago, idTransaccionMP || null]
+      `
+      INSERT INTO compras (
+        idUsuario,
+        idMetodoPago,
+        idEstadoPago,
+        idEstadoRegistro,
+        idTransaccionMP,
+        total
+      )
+      VALUES (
+        ?,
+        ?,
+        COALESCE(
+          (
+            SELECT idEstadoPago
+            FROM estados_pago
+            WHERE nombre IN ('approved', 'aprobado', 'pagado', 'pagada')
+            LIMIT 1
+          ),
+          1
+        ),
+        (
+          SELECT idEstadoRegistro
+          FROM estados_registro
+          WHERE nombre = 'activo'
+          LIMIT 1
+        ),
+        ?,
+        0
+      )
+      `,
+      [idUsuario, idMetodoPago, idTransaccionMP]
     );
 
     return result.insertId;
   },
 
-  /**
-   * Obtiene los ítems del carrito del usuario
-   */
   async getCartItems(idCarrito) {
     const [rows] = await db.execute(
-      `SELECT *
-       FROM items_carrito
-       WHERE idCarrito = ?`,
+      `
+      SELECT *
+      FROM items_carrito
+      WHERE idCarrito = ?
+        AND deleted_at IS NULL
+      `,
       [idCarrito]
     );
+
     return rows;
   },
 
-  /**
-   * Inserta un ítem comprado en items_compra
-   */
   async insertItem(connection, item) {
     const {
       idCompra,
-      tipoProducto,
+      idTipoProducto,
       idImagen,
       idAlbum,
       cantidad,
@@ -52,62 +72,146 @@ export const purchaseRepository = {
     } = item;
 
     await connection.execute(
-      `INSERT INTO items_compra
-        (idCompra, tipoProducto, idImagen, idAlbum, cantidad, precioUnitario)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [idCompra, tipoProducto, idImagen, idAlbum, cantidad, precioUnitario]
+      `
+      INSERT INTO items_compra (
+        idCompra,
+        idTipoProducto,
+        idImagen,
+        idAlbum,
+        cantidad,
+        precioUnitario,
+        idEstadoRegistro
+      )
+      VALUES (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        (
+          SELECT idEstadoRegistro
+          FROM estados_registro
+          WHERE nombre = 'activo'
+          LIMIT 1
+        )
+      )
+      `,
+      [
+        idCompra,
+        idTipoProducto,
+        idImagen,
+        idAlbum,
+        cantidad,
+        precioUnitario,
+      ]
     );
-  },
 
-  /**
-   * Vacía el carrito después de completar la compra
-   */
-  async clearCart(connection, idCarrito) {
     await connection.execute(
-      `DELETE FROM items_carrito WHERE idCarrito = ?`,
-      [idCarrito]
+      `
+      UPDATE compras
+      SET total = (
+        SELECT COALESCE(SUM(ic.subtotal), 0)
+        FROM items_compra ic
+        WHERE ic.idCompra = ?
+          AND ic.deleted_at IS NULL
+      )
+      WHERE idCompra = ?
+      `,
+      [idCompra, idCompra]
     );
   },
 
-  /**
-   * Confirma la transacción
-   */
+  async clearCart(connection, idCarrito, deletedBy = null) {
+    await connection.execute(
+      `
+      UPDATE items_carrito
+      SET
+        deleted_at = NOW(),
+        deleted_by = ?,
+        idEstadoRegistro = (
+          SELECT idEstadoRegistro
+          FROM estados_registro
+          WHERE nombre = 'eliminado'
+          LIMIT 1
+        )
+      WHERE idCarrito = ?
+        AND deleted_at IS NULL
+      `,
+      [deletedBy, idCarrito]
+    );
+  },
+
   async commit(connection) {
     await connection.commit();
     connection.release();
   },
 
-  /**
-   * Revierte la transacción en caso de error
-   */
   async rollback(connection) {
     await connection.rollback();
     connection.release();
   },
 
-  // Obtener compras del usuario con sus ítems
   async getUserPurchases(idUsuario) {
     const [rows] = await db.query(
       `
-      SELECT 
+      SELECT
         c.idCompra,
         c.fecha AS fechaCompra,
-        c.estadoPago,
+        c.total,
+
+        mp.nombre AS metodoPago,
+
+        ep.nombre AS estadoPago,
+        er.nombre AS estadoRegistro,
+        er.nombre AS estado,
+
         ic.idItemCompra,
-        ic.tipoProducto,
+        ic.idTipoProducto,
+
+        tp.nombre AS nombreProducto,
+
         ic.idImagen,
         ic.idAlbum,
+
+        ic.cantidad,
         ic.precioUnitario,
-        img.rutaMiniatura
+        ic.subtotal,
+
+        img.rutaMiniatura,
+        img.rutaOptimizado,
+        img.rutaOriginal
+
       FROM compras c
-      INNER JOIN items_compra ic ON c.idCompra = ic.idCompra
-      LEFT JOIN imagenes img ON img.idImagen = ic.idImagen
+
+      INNER JOIN items_compra ic
+        ON c.idCompra = ic.idCompra
+       AND ic.deleted_at IS NULL
+
+      LEFT JOIN tipos_producto tp
+        ON tp.idTipoProducto = ic.idTipoProducto
+
+      LEFT JOIN metodos_pago mp
+        ON mp.idMetodoPago = c.idMetodoPago
+
+      LEFT JOIN estados_pago ep
+        ON ep.idEstadoPago = c.idEstadoPago
+
+      LEFT JOIN estados_registro er
+        ON er.idEstadoRegistro = c.idEstadoRegistro
+
+      LEFT JOIN imagenes img
+        ON img.idImagen = ic.idImagen
+       AND img.deleted_at IS NULL
+
       WHERE c.idUsuario = ?
+        AND c.deleted_at IS NULL
+
       ORDER BY c.fecha DESC
       `,
       [idUsuario]
     );
 
     return rows;
-  }
+  },
 };

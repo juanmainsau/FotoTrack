@@ -5,7 +5,16 @@ import { AlbumEditModal } from "../components/AlbumEditModal";
 
 // API calls
 async function fetchAlbums() {
-  const res = await fetch("http://localhost:4000/api/albums");
+  const token = localStorage.getItem("fototrack-token");
+
+  const res = await fetch(`http://localhost:4000/api/albums?t=${Date.now()}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Cache-Control": "no-cache",
+    },
+    cache: "no-store",
+  });
+
   return res.json();
 }
 
